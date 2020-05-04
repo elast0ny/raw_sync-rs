@@ -1,6 +1,5 @@
 use std::cell::UnsafeCell;
-use std::error::Error;
-use std::ffi::{c_void, CString};
+use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr::null_mut;
 
@@ -17,11 +16,12 @@ use winapi::{
 
 use log::*;
 
+use crate::Result;
 use super::{LockGuard, LockImpl, LockInit};
 
 pub struct Mutex {
     handle: HANDLE,
-    data: UnsafeCell<*mut c_void>,
+    data: UnsafeCell<*mut u8>,
 }
 
 impl LockInit for Mutex {
@@ -33,18 +33,9 @@ impl LockInit for Mutex {
     }
 
     unsafe fn new(
-        dst: &mut [u8],
-        data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>> {
-        // Make sure theres enough space for the mutex ID
-        if dst.len() < Self::size_of() {
-            return Err(From::from(format!(
-                "Not enough space to hold Mutex {}/{}",
-                dst.len(),
-                Self::size_of()
-            )));
-        }
-
+        mem: *mut u8,
+        data: *mut u8,
+    ) -> Result<(Box<dyn LockImpl>, usize)> {
         // Find a mutex id that doesnt collide with another
         let mut mutex_handle: HANDLE = NULL;
         let mut mutex_id: u32 = 0;
@@ -73,25 +64,17 @@ impl LockInit for Mutex {
         mutex.release()?;
 
         // Write the mutex id to the backing memory
-        *(dst.as_mut_ptr() as *mut u32) = mutex_id;
+        *(mem as *mut u32) = mutex_id;
 
         Ok((mutex, Self::size_of()))
     }
 
     unsafe fn from_existing(
-        src: &mut [u8],
-        data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>> {
-        // Make sure theres enough space for the mutex ID
-        if src.len() < Self::size_of() {
-            return Err(From::from(format!(
-                "Not enough space to hold Mutex {}/{}",
-                src.len(),
-                Self::size_of()
-            )));
-        }
+        mem: *mut u8,
+        data: *mut u8,
+    ) -> Result<(Box<dyn LockImpl>, usize)> {
 
-        let mutex_id = *(src.as_mut_ptr() as *mut u32);
+        let mutex_id = *(mem as *mut u32);
         let path = CString::new(format!("mutex_{}", mutex_id)).unwrap();
         debug!(
             "OpenMutexA(0x{:X}, 0x{:X}, '{}')",
@@ -124,9 +107,9 @@ impl Drop for Mutex {
 }
 
 impl LockImpl for Mutex {
-    fn lock(&self) -> Result<LockGuard<'_>, Box<dyn Error>> {
-        debug!("WaitForSingleObject(0x{:X})", self.handle as usize);
+    fn lock(&self) -> Result<LockGuard<'_>> {
         let wait_res = unsafe { WaitForSingleObject(self.handle, INFINITE) };
+        debug!("WaitForSingleObject(0x{:X})", self.handle as usize);
         if wait_res == WAIT_OBJECT_0 {
             Ok(LockGuard::new(self))
         } else if wait_res == WAIT_ABANDONED {
@@ -138,7 +121,7 @@ impl LockImpl for Mutex {
             )))
         }
     }
-    fn release(&self) -> Result<(), Box<dyn Error>> {
+    fn release(&self) -> Result<()> {
         debug!("ReleaseMutex(0x{:X})", self.handle as usize);
         if unsafe { ReleaseMutex(self.handle) } == 0 {
             Err(From::from(
@@ -148,7 +131,7 @@ impl LockImpl for Mutex {
             Ok(())
         }
     }
-    unsafe fn get_inner(&self) -> &mut *mut c_void {
+    unsafe fn get_inner(&self) -> &mut *mut u8 {
         &mut *self.data.get()
     }
 }

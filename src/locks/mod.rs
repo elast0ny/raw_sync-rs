@@ -1,14 +1,14 @@
-use std::error::Error;
-use std::ffi::c_void;
 use std::ops::{Deref, DerefMut};
+
+use crate::Result;
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "windows")] {
         mod windows;
         use windows as os;
     } else if #[cfg(any(target_os = "linux"))] {
-        mod nix;
-        use nix as os;
+        mod unix;
+        use unix as os;
     } else {
         unimplemented!("This crate does not support your OS yet !");
     }
@@ -22,19 +22,21 @@ pub struct LockGuard<'t> {
 }
 impl<'t> Drop for LockGuard<'t> {
     fn drop(&mut self) {
-        let _ = self.lock.release();
+        self.lock.release().unwrap();
     }
 }
 impl<'t> LockGuard<'t> {
     fn new(lock_impl: &'t dyn LockImpl) -> Self {
         Self { lock: lock_impl }
     }
-    pub fn as_read_guard(&self) -> ReadLockGuard<'t> {
-        ReadLockGuard::new(self.lock)
+    pub fn into_read_guard(self) -> ReadLockGuard<'t> {
+        let inner_lock = self.lock;
+        std::mem::forget(self);
+        ReadLockGuard::new(inner_lock)
     }
 }
 impl<'t> Deref for LockGuard<'t> {
-    type Target = *mut c_void;
+    type Target = *mut u8;
     fn deref(&self) -> &Self::Target {
         unsafe { self.lock.get_inner() }
     }
@@ -45,6 +47,7 @@ impl<'t> DerefMut for LockGuard<'t> {
     }
 }
 
+/// Used to wrap an acquired lock's read only data. Lock is automatically released on `Drop`
 pub struct ReadLockGuard<'t> {
     lock: &'t dyn LockImpl,
 }
@@ -56,13 +59,13 @@ impl<'t>  ReadLockGuard<'t> {
 
 impl<'t> Drop for ReadLockGuard<'t> {
     fn drop(&mut self) {
-        let _ = self.lock.release();
+        self.lock.release().unwrap();
     }
 }
 impl<'t> Deref for ReadLockGuard<'t> {
-    type Target = *const c_void;
+    type Target = *const u8;
     fn deref(&self) -> &Self::Target {
-        unsafe { &*(self.lock.get_inner() as *mut *mut c_void as *const *const c_void) }
+        unsafe { &*(self.lock.get_inner() as *mut *mut u8 as *const *const u8) }
     }
 }
 
@@ -71,33 +74,30 @@ pub trait LockInit {
     fn size_of() -> usize;
     /// Potential Alignment requirements for the lock's internal representation
     fn alignment() -> Option<u8>;
-    /// Initializes a new instance of the lock in the provided buffer and returns
-    /// the remaining unused bytes.
-    /// SAFETY : The caller MUST stop using the slice provided as `dst` and use the returned remainder on success
+    /// Initializes a new instance of the lock in the provided buffer and returns the number of used bytes
     unsafe fn new(
-        dst: &mut [u8],
-        data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>>;
-    /// Creates a lock from an already initialized location
-    /// SAFETY : The caller MUST stop using the slice provided as `src` and use the returned remainder on success
+        mem: *mut u8,
+        data: *mut u8,
+    ) -> Result<(Box<dyn LockImpl>, usize)>;
+    /// Re-uses a lock from an already initialized location and returns the number of used bytes
     unsafe fn from_existing(
-        src: &mut [u8],
-        data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>>;
+        mem: *mut u8,
+        data: *mut u8,
+    ) -> Result<(Box<dyn LockImpl>, usize)>;
 }
 
 pub trait LockImpl {
     /// Acquires the lock
-    fn lock(&self) -> Result<LockGuard<'_>, Box<dyn Error>>;
+    fn lock(&self) -> Result<LockGuard<'_>>;
     /// Release the lock
-    fn release(&self) -> Result<(), Box<dyn Error>>;
+    fn release(&self) -> Result<()>;
 
     /// Acquires the lock for read access only. This method uses `lock()` as a fallback
-    fn rlock(&self) -> Result<ReadLockGuard<'_>, Box<dyn Error>> {
-        Ok(self.lock()?.as_read_guard())
+    fn rlock(&self) -> Result<ReadLockGuard<'_>> {
+        Ok(self.lock()?.into_read_guard())
     }
 
     /// Leaks the inner data without acquiring the lock
     #[doc(hidden)]
-    unsafe fn get_inner(&self) -> &mut *mut c_void;
+    unsafe fn get_inner(&self) -> &mut *mut u8;
 }
