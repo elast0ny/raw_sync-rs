@@ -24,16 +24,7 @@ use libc::{
     PTHREAD_PROCESS_SHARED,
 };
 use log::*;
-/*
-cfg_if::cfg_if! {
-    if #[cfg(target_os="macos")] {
-        mod mac;
-        pub use mac::pthread_mutex_timedlock;
-    } else {
-        use ::libc::pthread_mutex_timedlock;
-    }
-}
-*/
+
 use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};
 use crate::Result;
 
