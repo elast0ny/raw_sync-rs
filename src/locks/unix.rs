@@ -37,19 +37,9 @@ impl LockInit for Mutex {
     fn size_of() -> usize {
         size_of::<pthread_mutex_t>()
     }
-    fn alignment() -> Option<u8> {
-        // Keep it pointer aligned
-        Some(size_of::<*mut u8>() as _)
-    }
 
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
-        let padding = match Self::alignment() {
-            Some(v) => {
-                let padding = mem.align_offset(v as _);
-                padding
-            }
-            None => 0,
-        };
+        let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let mut lock_attr: pthread_mutexattr_t = std::mem::zeroed();
         if pthread_mutexattr_init(&mut lock_attr) != 0 {
@@ -75,17 +65,11 @@ impl LockInit for Mutex {
             data: UnsafeCell::new(data),
         });
 
-        Ok((mutex, Self::size_of()))
+        Ok((mutex, ptr as usize - mem as usize))
     }
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
-        let padding = match Self::alignment() {
-            Some(v) => {
-                let padding = mem.align_offset(v as _);
-                padding
-            }
-            None => 0,
-        };
+        let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let ptr = mem.offset(padding as _) as *mut _;
 
@@ -95,7 +79,7 @@ impl LockInit for Mutex {
             data: UnsafeCell::new(data),
         });
 
-        Ok((mutex, Self::size_of()))
+        Ok((mutex, ptr as usize - mem as usize))
     }
 }
 
@@ -135,19 +119,9 @@ impl LockInit for RWLock {
     fn size_of() -> usize {
         size_of::<pthread_rwlock_t>()
     }
-    fn alignment() -> Option<u8> {
-        // Keep it pointer aligned
-        Some(size_of::<*mut u8>() as _)
-    }
 
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
-        let padding = match Self::alignment() {
-            Some(v) => {
-                let padding = mem.align_offset(v as _);
-                padding
-            }
-            None => 0,
-        };
+        let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let mut lock_attr: pthread_rwlockattr_t = std::mem::zeroed();
         if pthread_rwlockattr_init(&mut lock_attr) != 0 {
@@ -173,17 +147,11 @@ impl LockInit for RWLock {
             data: UnsafeCell::new(data),
         });
 
-        Ok((lock, Self::size_of()))
+        Ok((lock, ptr as usize - mem as usize))
     }
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
-        let padding = match Self::alignment() {
-            Some(v) => {
-                let padding = mem.align_offset(v as _);
-                padding
-            }
-            None => 0,
-        };
+        let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let ptr = mem.offset(padding as _) as *mut _;
 
@@ -193,7 +161,7 @@ impl LockInit for RWLock {
             data: UnsafeCell::new(data),
         });
 
-        Ok((lock, Self::size_of()))
+        Ok((lock, ptr as usize - mem as usize))
     }
 }
 

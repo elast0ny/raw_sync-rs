@@ -1,7 +1,5 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::Result;
-
 cfg_if::cfg_if! {
     if #[cfg(target_os = "windows")] {
         mod windows;
@@ -13,8 +11,8 @@ cfg_if::cfg_if! {
         unimplemented!("This crate does not support your OS yet !");
     }
 }
-
 pub use os::*;
+use crate::Result;
 
 /// Used to wrap an acquired lock's data. Lock is automatically released on `Drop`
 pub struct LockGuard<'t> {
@@ -72,8 +70,6 @@ impl<'t> Deref for ReadLockGuard<'t> {
 pub trait LockInit {
     /// Size required for the lock's internal representation
     fn size_of() -> usize;
-    /// Potential Alignment requirements for the lock's internal representation
-    fn alignment() -> Option<u8>;
     /// Initializes a new instance of the lock in the provided buffer and returns the number of used bytes
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)>;
     /// Re-uses a lock from an already initialized location and returns the number of used bytes

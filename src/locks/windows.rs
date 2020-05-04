@@ -28,9 +28,6 @@ impl LockInit for Mutex {
     fn size_of() -> usize {
         size_of::<u32>()
     }
-    fn alignment() -> Option<u8> {
-        None
-    }
 
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         // Find a mutex id that doesnt collide with another
