@@ -10,7 +10,7 @@ use libc::{
     pthread_mutexattr_init,
     pthread_mutexattr_setpshared,
     pthread_mutexattr_t,
-    
+
     //Rwlock defs
     pthread_rwlock_init,
     pthread_rwlock_rdlock,
@@ -34,7 +34,7 @@ cfg_if::cfg_if! {
     }
 }
 */
-use super::{LockGuard, ReadLockGuard, LockImpl, LockInit};
+use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};
 use crate::Result;
 
 pub struct Mutex {

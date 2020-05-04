@@ -38,7 +38,7 @@ fn increment_val(id: u8, lock: Box<dyn LockImpl>) {
 fn main() -> Result<()> {
     env_logger::from_env(Env::default().default_filter_or("info")).init();
     let mut mem = [0u8; 64];
-    
+
     info!("Mutex");
     test_mutex(mem.as_mut_ptr())?;
 
@@ -51,12 +51,11 @@ fn main() -> Result<()> {
 }
 
 fn test_mutex(mem: *mut u8) -> Result<()> {
-
     let mut some_data: usize = 0;
 
     let mem_ptr = mem as usize;
     let data_ptr = &mut some_data as *mut _ as usize;
-    
+
     let (lock, _) = unsafe { Mutex::new(mem, data_ptr as _)? };
 
     let child = thread::spawn(move || {
@@ -75,7 +74,7 @@ fn test_rwlock(mem: *mut u8) -> Result<()> {
 
     let mem_ptr = mem as usize;
     let data_ptr = &mut some_data as *mut _ as usize;
-    
+
     let (lock, _) = unsafe { RWLock::new(mem, data_ptr as _)? };
 
     let child = thread::spawn(move || {

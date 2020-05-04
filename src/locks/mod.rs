@@ -51,7 +51,7 @@ impl<'t> DerefMut for LockGuard<'t> {
 pub struct ReadLockGuard<'t> {
     lock: &'t dyn LockImpl,
 }
-impl<'t>  ReadLockGuard<'t> {
+impl<'t> ReadLockGuard<'t> {
     fn new(lock_impl: &'t dyn LockImpl) -> Self {
         Self { lock: lock_impl }
     }
@@ -75,15 +75,9 @@ pub trait LockInit {
     /// Potential Alignment requirements for the lock's internal representation
     fn alignment() -> Option<u8>;
     /// Initializes a new instance of the lock in the provided buffer and returns the number of used bytes
-    unsafe fn new(
-        mem: *mut u8,
-        data: *mut u8,
-    ) -> Result<(Box<dyn LockImpl>, usize)>;
+    unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)>;
     /// Re-uses a lock from an already initialized location and returns the number of used bytes
-    unsafe fn from_existing(
-        mem: *mut u8,
-        data: *mut u8,
-    ) -> Result<(Box<dyn LockImpl>, usize)>;
+    unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)>;
 }
 
 pub trait LockImpl {

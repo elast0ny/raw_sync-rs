@@ -16,8 +16,8 @@ use winapi::{
 
 use log::*;
 
-use crate::Result;
 use super::{LockGuard, LockImpl, LockInit};
+use crate::Result;
 
 pub struct Mutex {
     handle: HANDLE,
@@ -32,10 +32,7 @@ impl LockInit for Mutex {
         None
     }
 
-    unsafe fn new(
-        mem: *mut u8,
-        data: *mut u8,
-    ) -> Result<(Box<dyn LockImpl>, usize)> {
+    unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         // Find a mutex id that doesnt collide with another
         let mut mutex_handle: HANDLE = NULL;
         let mut mutex_id: u32 = 0;
@@ -69,11 +66,7 @@ impl LockInit for Mutex {
         Ok((mutex, Self::size_of()))
     }
 
-    unsafe fn from_existing(
-        mem: *mut u8,
-        data: *mut u8,
-    ) -> Result<(Box<dyn LockImpl>, usize)> {
-
+    unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let mutex_id = *(mem as *mut u32);
         let path = CString::new(format!("mutex_{}", mutex_id)).unwrap();
         debug!(
