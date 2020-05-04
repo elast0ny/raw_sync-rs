@@ -35,7 +35,7 @@ impl LockInit for Mutex {
     unsafe fn new(
         dst: &mut [u8],
         data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, &mut [u8]), Box<dyn Error>> {
+    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>> {
         // Make sure theres enough space for the mutex ID
         if dst.len() < Self::size_of() {
             return Err(From::from(format!(
@@ -75,13 +75,13 @@ impl LockInit for Mutex {
         // Write the mutex id to the backing memory
         *(dst.as_mut_ptr() as *mut u32) = mutex_id;
 
-        Ok((mutex, &mut dst[Self::size_of()..]))
+        Ok((mutex, Self::size_of()))
     }
 
     unsafe fn from_existing(
         src: &mut [u8],
         data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, &mut [u8]), Box<dyn Error>> {
+    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>> {
         // Make sure theres enough space for the mutex ID
         if src.len() < Self::size_of() {
             return Err(From::from(format!(
@@ -112,7 +112,7 @@ impl LockInit for Mutex {
             data: UnsafeCell::new(data),
         });
 
-        Ok((mutex, &mut src[Self::size_of()..]))
+        Ok((mutex, Self::size_of()))
     }
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "sync_primitives"
+name = "raw_sync"
 version = "0.1.0"
 authors = ["elast0ny <elast0ny00@gmail.com>"]
 edition = "2018"

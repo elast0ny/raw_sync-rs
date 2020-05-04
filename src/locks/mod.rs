@@ -67,13 +67,13 @@ pub trait LockInit {
     unsafe fn new(
         dst: &mut [u8],
         data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, &mut [u8]), Box<dyn Error>>;
+    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>>;
     /// Creates a lock from an already initialized location
     /// SAFETY : The caller MUST stop using the slice provided as `src` and use the returned remainder on success
     unsafe fn from_existing(
         src: &mut [u8],
         data: *mut c_void,
-    ) -> Result<(Box<dyn LockImpl>, &mut [u8]), Box<dyn Error>>;
+    ) -> Result<(Box<dyn LockImpl>, usize), Box<dyn Error>>;
 }
 
 pub trait LockImpl {
