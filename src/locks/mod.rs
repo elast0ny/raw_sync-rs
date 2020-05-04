@@ -16,6 +16,7 @@ cfg_if::cfg_if! {
 
 pub use os::*;
 
+/// Used to wrap an acquired lock's data. Lock is automatically released on `Drop`
 pub struct LockGuard<'t> {
     lock: &'t dyn LockImpl,
 }
@@ -27,6 +28,9 @@ impl<'t> Drop for LockGuard<'t> {
 impl<'t> LockGuard<'t> {
     fn new(lock_impl: &'t dyn LockImpl) -> Self {
         Self { lock: lock_impl }
+    }
+    pub fn as_read_guard(&self) -> ReadLockGuard<'t> {
+        ReadLockGuard::new(self.lock)
     }
 }
 impl<'t> Deref for LockGuard<'t> {
@@ -44,6 +48,12 @@ impl<'t> DerefMut for LockGuard<'t> {
 pub struct ReadLockGuard<'t> {
     lock: &'t dyn LockImpl,
 }
+impl<'t>  ReadLockGuard<'t> {
+    fn new(lock_impl: &'t dyn LockImpl) -> Self {
+        Self { lock: lock_impl }
+    }
+}
+
 impl<'t> Drop for ReadLockGuard<'t> {
     fn drop(&mut self) {
         let _ = self.lock.release();
@@ -82,14 +92,12 @@ pub trait LockImpl {
     /// Release the lock
     fn release(&self) -> Result<(), Box<dyn Error>>;
 
+    /// Acquires the lock for read access only. This method uses `lock()` as a fallback
+    fn rlock(&self) -> Result<ReadLockGuard<'_>, Box<dyn Error>> {
+        Ok(self.lock()?.as_read_guard())
+    }
+
     /// Leaks the inner data without acquiring the lock
     #[doc(hidden)]
     unsafe fn get_inner(&self) -> &mut *mut c_void;
-    /*
-    /// Returns a read only access to the protected data. This function always returns an
-    /// error for locks that do not implemented read only access.
-    fn rlock(&self) -> Result<ReadLockGuard<'_, T>, Box<dyn Error>> {
-        self.lock()
-    }
-    */
 }
