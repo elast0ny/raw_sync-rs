@@ -21,7 +21,7 @@ pub struct Event {
 }
 impl Drop for Event {
     fn drop(&mut self) {
-        debug!("CloseHandle(0x{:X})", self.handle as usize);
+        trace!("CloseHandle(0x{:X})", self.handle as usize);
         unsafe { CloseHandle(self.handle) };
     }
 }
@@ -36,7 +36,7 @@ impl EventInit for Event {
         while handle == NULL {
             id = rand::random::<u32>();
             let path = CString::new(format!("event_{}", id)).unwrap();
-            debug!(
+            trace!(
                 "CreateEventA(NULL, '{:?}', '{}')",
                 !is_auto,
                 path.to_string_lossy(),
@@ -57,7 +57,7 @@ impl EventInit for Event {
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)> {
         let id: u32 = *(mem as *mut u32);
         let path = CString::new(format!("event_{}", id)).unwrap();
-        debug!("OpenEventA('{}')", path.to_string_lossy());
+        trace!("OpenEventA('{}')", path.to_string_lossy());
         let handle = OpenEventA(
             EVENT_MODIFY_STATE | SYNCHRONIZE, // request full access
             FALSE as _,                       // handle not inheritable
@@ -76,7 +76,7 @@ impl EventInit for Event {
 }
 impl EventImpl for Event {
     fn wait(&self, timeout: Timeout) -> Result<()> {
-        debug!("WaitForSingleObject(0x{:X})", self.handle as usize);
+        trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
         let wait_res = unsafe{WaitForSingleObject(self.handle, match timeout {
             Timeout::Infinite => INFINITE,
             Timeout::Val(dur) => dur.as_millis() as _,
@@ -95,11 +95,11 @@ impl EventImpl for Event {
     fn set(&self, state: EventState) -> Result<()> {
         let res = match state {
             EventState::Clear => {
-                debug!("ResetEvent(0x{:X})", self.handle as usize);
+                trace!("ResetEvent(0x{:X})", self.handle as usize);
                 unsafe{ResetEvent(self.handle)}
             },
             EventState::Signaled => {
-                debug!("SetEvent(0x{:X})", self.handle as usize);
+                trace!("SetEvent(0x{:X})", self.handle as usize);
                 unsafe{SetEvent(self.handle)}
             },
         };

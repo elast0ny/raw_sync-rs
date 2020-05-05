@@ -53,7 +53,7 @@ impl LockInit for Mutex {
             ));
         }
         let ptr = mem.offset(padding as _) as *mut _;
-        debug!("pthread_mutex_init({:p})", ptr);
+        trace!("pthread_mutex_init({:p})", ptr);
         if pthread_mutex_init(ptr, &lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize mutex pthread_mutex_init".to_string(),
@@ -73,7 +73,7 @@ impl LockInit for Mutex {
 
         let ptr = mem.offset(padding as _) as *mut _;
 
-        debug!("existing mutex ({:p})", ptr);
+        trace!("existing mutex ({:p})", ptr);
         let mutex = Box::new(Self {
             ptr,
             data: UnsafeCell::new(data),
@@ -90,7 +90,7 @@ impl Drop for Mutex {
 impl LockImpl for Mutex {
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_mutex_lock(self.ptr) };
-        debug!("pthread_mutex_lock({:p})", self.ptr);
+        trace!("pthread_mutex_lock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to acquire mutex : {}", res)));
         }
@@ -99,7 +99,7 @@ impl LockImpl for Mutex {
     }
     fn release(&self) -> Result<()> {
         let res = unsafe { pthread_mutex_unlock(self.ptr) };
-        debug!("pthread_mutex_unlock({:p})", self.ptr);
+        trace!("pthread_mutex_unlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to release mutex : {}", res)));
         }
@@ -135,7 +135,7 @@ impl LockInit for RwLock {
             ));
         }
         let ptr = mem.offset(padding as _) as *mut _;
-        debug!("pthread_rwlock_init({:p})", ptr);
+        trace!("pthread_rwlock_init({:p})", ptr);
         if pthread_rwlock_init(ptr, &lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_rwlock_init".to_string(),
@@ -155,7 +155,7 @@ impl LockInit for RwLock {
 
         let ptr = mem.offset(padding as _) as *mut _;
 
-        debug!("existing rwlock ({:p})", ptr);
+        trace!("existing rwlock ({:p})", ptr);
         let lock = Box::new(Self {
             ptr,
             data: UnsafeCell::new(data),
@@ -172,7 +172,7 @@ impl Drop for RwLock {
 impl LockImpl for RwLock {
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_rwlock_wrlock(self.ptr) };
-        debug!("pthread_rwlock_wrlock({:p})", self.ptr);
+        trace!("pthread_rwlock_wrlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!(
                 "Failed to acquire writeable rwlock : {}",
@@ -184,7 +184,7 @@ impl LockImpl for RwLock {
     }
     fn rlock(&self) -> Result<ReadLockGuard<'_>> {
         let res = unsafe { pthread_rwlock_rdlock(self.ptr) };
-        debug!("pthread_rwlock_rdlock({:p})", self.ptr);
+        trace!("pthread_rwlock_rdlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!(
                 "Failed to acquire readable rwlock : {}",
@@ -196,7 +196,7 @@ impl LockImpl for RwLock {
     }
     fn release(&self) -> Result<()> {
         let res = unsafe { pthread_rwlock_unlock(self.ptr) };
-        debug!("pthread_rwlock_unlock({:p})", self.ptr);
+        trace!("pthread_rwlock_unlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to release rwlock : {}", res)));
         }
