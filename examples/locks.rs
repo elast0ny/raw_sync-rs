@@ -43,7 +43,7 @@ fn main() -> Result<()> {
     test_mutex(mem.as_mut_ptr())?;
 
     #[cfg(not(windows))]
-    info!("RWLock");
+    info!("RwLock");
     #[cfg(not(windows))]
     test_rwlock(mem.as_mut_ptr())?;
 
@@ -75,10 +75,10 @@ fn test_rwlock(mem: *mut u8) -> Result<()> {
     let mem_ptr = mem as usize;
     let data_ptr = &mut some_data as *mut _ as usize;
 
-    let (lock, _) = unsafe { RWLock::new(mem, data_ptr as _)? };
+    let (lock, _) = unsafe { RwLock::new(mem, data_ptr as _)? };
 
     let child = thread::spawn(move || {
-        let (lock, _) = unsafe { RWLock::from_existing(mem_ptr as _, data_ptr as _).unwrap() };
+        let (lock, _) = unsafe { RwLock::from_existing(mem_ptr as _, data_ptr as _).unwrap() };
         increment_val(2, lock);
     });
 

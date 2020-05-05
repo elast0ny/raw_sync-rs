@@ -110,12 +110,12 @@ impl LockImpl for Mutex {
     }
 }
 
-pub struct RWLock {
+pub struct RwLock {
     ptr: *mut pthread_rwlock_t,
     data: UnsafeCell<*mut u8>,
 }
 
-impl LockInit for RWLock {
+impl LockInit for RwLock {
     fn size_of() -> usize {
         size_of::<pthread_rwlock_t>()
     }
@@ -165,11 +165,11 @@ impl LockInit for RWLock {
     }
 }
 
-impl Drop for RWLock {
+impl Drop for RwLock {
     fn drop(&mut self) {}
 }
 
-impl LockImpl for RWLock {
+impl LockImpl for RwLock {
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_rwlock_wrlock(self.ptr) };
         debug!("pthread_rwlock_wrlock({:p})", self.ptr);
