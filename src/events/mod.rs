@@ -23,7 +23,7 @@ pub trait EventInit {
     /// Size required for the event's internal representation
     fn size_of() -> usize;
     /// Initializes a new instance of the event in the provided buffer and returns the number of used bytes
-    unsafe fn new(mem: *mut u8, is_auto: bool) -> Result<(Box<dyn EventImpl>, usize)>;
+    unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)>;
     /// Re-uses an event from an already initialized location and returns the number of used bytes
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)>;
 }
@@ -52,14 +52,14 @@ impl EventInit for BusyEvent {
         size_of::<InnerBusy>()
     }
 
-    unsafe fn new(mem: *mut u8, is_auto: bool) -> Result<(Box<dyn EventImpl>, usize)> {
+    unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)> {
         let ptr = mem as *mut InnerBusy;
         let obj = Self {
             inner: ptr,
         };
         let inner = &mut *obj.inner;
 
-        inner.auto_reset = if is_auto {
+        inner.auto_reset = if auto_reset {
             1
         } else {
             0

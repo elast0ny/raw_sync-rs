@@ -30,7 +30,7 @@ impl EventInit for Event {
         size_of::<u32>()
     }
     
-    unsafe fn new(mem: *mut u8, is_auto: bool) -> Result<(Box<dyn EventImpl>, usize)> {
+    unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)> {
         let mut handle: HANDLE = NULL;
         let mut id: u32 = 0;
         while handle == NULL {
@@ -38,12 +38,12 @@ impl EventInit for Event {
             let path = CString::new(format!("event_{}", id)).unwrap();
             trace!(
                 "CreateEventA(NULL, '{:?}', '{}')",
-                !is_auto,
+                !auto_reset,
                 path.to_string_lossy(),
             );
             handle = CreateEventA(
                 null_mut(),
-                if is_auto { FALSE } else { TRUE } as _,
+                if auto_reset { FALSE } else { TRUE } as _,
                 FALSE as _,
                 path.as_ptr() as *mut _,
             );
