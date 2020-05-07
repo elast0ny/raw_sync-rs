@@ -56,7 +56,7 @@ fn event_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
             };
             info!("\tSignaled !");
         }
-        
+
         info!("\tSetting event to signaled");
         obj.set(EventState::Signaled).unwrap();
         info!("\tSetting event to signaled");
@@ -69,7 +69,7 @@ fn event_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
     info!("Setting event to signaled");
     obj.set(EventState::Signaled)?;
     thread::sleep(time::Duration::from_secs(3));
-    
+
     info!("Waiting until timeout");
     if let Ok(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
         panic!("This should have timed out !");
@@ -109,7 +109,7 @@ fn busy_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
             };
             info!("\tSignaled !");
         }
-        
+
         info!("\tSetting event to signaled");
         obj.set(EventState::Signaled).unwrap();
         info!("\tSetting event to signaled");
@@ -122,7 +122,7 @@ fn busy_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
     info!("Setting event to signaled");
     obj.set(EventState::Signaled)?;
     thread::sleep(time::Duration::from_secs(3));
-    
+
     info!("Waiting until timeout");
     if let Ok(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
         panic!("This should have timed out !");

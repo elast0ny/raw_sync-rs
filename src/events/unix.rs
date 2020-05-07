@@ -15,7 +15,6 @@ use libc::{
     pthread_condattr_t,
     PTHREAD_PROCESS_SHARED,
 };
-use log::*;
 
 use crate::events::*;
 use crate::locks::*;
@@ -52,7 +51,7 @@ impl EventInit for Event {
             ));
         }
 
-        trace!("pthread_cond_init({:p})", ptr);
+        //trace!("pthread_cond_init({:p})", ptr);
         if pthread_cond_init(&mut inner.cond, &attrs) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_cond_init".to_string(),
@@ -130,7 +129,7 @@ impl EventImpl for Event {
         let inner = unsafe { &mut *self.inner };
         let res = match state {
             EventState::Clear => {
-                trace!("reset pthread_cond({:p})", &inner.cond);
+                //trace!("reset pthread_cond({:p})", &inner.cond);
                 inner.signal = 0;
                 0
             }
@@ -138,10 +137,10 @@ impl EventImpl for Event {
                 inner.signal = 1;
                 unsafe {
                     if inner.auto_reset == 1 {
-                        trace!("pthread_cond_signal({:p})", &inner.cond);
+                        //trace!("pthread_cond_signal({:p})", &inner.cond);
                         pthread_cond_signal(&mut inner.cond)
                     } else {
-                        trace!("pthread_cond_broadcast({:p})", &inner.cond);
+                        //trace!("pthread_cond_broadcast({:p})", &inner.cond);
                         pthread_cond_broadcast(&mut inner.cond)
                     }
                 }

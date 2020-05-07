@@ -3,14 +3,11 @@ use std::time;
 
 use env_logger::Env;
 use log::*;
-use raw_sync::{
-    Timeout,
-    locks::*
-};
+use raw_sync::{locks::*, Timeout};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn test_timeout(id: u8 , lock: &dyn LockImpl) {
+fn test_timeout(id: u8, lock: &dyn LockImpl) {
     info!("[{}] Waiting for lock for 1 second", id);
     let guard = lock.try_lock(Timeout::Val(time::Duration::from_secs(1)));
     if guard.is_err() {

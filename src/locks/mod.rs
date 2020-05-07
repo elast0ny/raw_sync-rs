@@ -11,8 +11,8 @@ cfg_if::cfg_if! {
         unimplemented!("This crate does not support your OS yet !");
     }
 }
-pub use os::*;
 use crate::{Result, Timeout};
+pub use os::*;
 
 pub trait LockInit {
     /// Size required for the lock's internal representation
@@ -48,7 +48,6 @@ pub trait LockImpl {
     #[doc(hidden)]
     unsafe fn get_inner(&self) -> &mut *mut u8;
 }
-
 
 /// Used to wrap an acquired lock's data. Lock is automatically released on `Drop`
 pub struct LockGuard<'t> {

@@ -3,31 +3,31 @@ use std::mem::{size_of, MaybeUninit};
 use std::time::Duration;
 
 use libc::{
-    timespec,
     clock_gettime,
-    CLOCK_REALTIME,
-
-    //Mutex defs
-    pthread_mutex_t,
-    pthread_mutexattr_t,
-    pthread_mutexattr_init,
-    pthread_mutexattr_setpshared,
     pthread_mutex_init,
     pthread_mutex_lock,
+    //Mutex defs
+    pthread_mutex_t,
     pthread_mutex_timedlock,
     pthread_mutex_unlock,
-    
-    //Rwlock defs
-    pthread_rwlock_t,
-    pthread_rwlockattr_t,
-    pthread_rwlockattr_init,
-    pthread_rwlockattr_setpshared,
+
+    pthread_mutexattr_init,
+    pthread_mutexattr_setpshared,
+    pthread_mutexattr_t,
     pthread_rwlock_init,
     pthread_rwlock_rdlock,
-    //pthread_rwlock_timedrdlock,
-    pthread_rwlock_wrlock,
+    //Rwlock defs
+    pthread_rwlock_t,
     //pthread_rwlock_timedwrlock,
     pthread_rwlock_unlock,
+
+    //pthread_rwlock_timedrdlock,
+    pthread_rwlock_wrlock,
+    pthread_rwlockattr_init,
+    pthread_rwlockattr_setpshared,
+    pthread_rwlockattr_t,
+    timespec,
+    CLOCK_REALTIME,
 
     PTHREAD_PROCESS_SHARED,
 };
@@ -37,13 +37,11 @@ extern "C" {
     fn pthread_rwlock_timedwrlock(attr: *mut pthread_rwlock_t, host: *const timespec) -> i32;
 }
 
-use log::*;
-
 use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};
 use crate::{Result, Timeout};
 
 /// Adds a duration to the current time
-pub (crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
+pub(crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
     unsafe {
         let mut cur_time: timespec = MaybeUninit::uninit().assume_init();
         // Get current time
@@ -80,7 +78,7 @@ impl LockInit for Mutex {
             ));
         }
         let ptr = mem.offset(padding as _) as *mut _;
-        trace!("pthread_mutex_init({:p})", ptr);
+        //trace!("pthread_mutex_init({:p})", ptr);
         if pthread_mutex_init(ptr, &lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize mutex pthread_mutex_init".to_string(),
@@ -100,7 +98,7 @@ impl LockInit for Mutex {
 
         let ptr = mem.offset(padding as _) as *mut _;
 
-        trace!("existing mutex ({:p})", ptr);
+        //trace!("existing mutex ({:p})", ptr);
         let mutex = Box::new(Self {
             ptr,
             data: UnsafeCell::new(data),
@@ -121,7 +119,7 @@ impl LockImpl for Mutex {
 
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_mutex_lock(self.ptr) };
-        trace!("pthread_mutex_lock({:p})", self.ptr);
+        //trace!("pthread_mutex_lock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to acquire mutex : {}", res)));
         }
@@ -136,17 +134,17 @@ impl LockImpl for Mutex {
         };
 
         let res = unsafe { pthread_mutex_timedlock(self.ptr, &timespec) };
-        trace!("pthread_mutex_timedlock({:p})", self.ptr);
+        //trace!("pthread_mutex_timedlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to acquire mutex : {}", res)));
         }
 
         Ok(LockGuard::new(self))
     }
-    
+
     fn release(&self) -> Result<()> {
         let res = unsafe { pthread_mutex_unlock(self.ptr) };
-        trace!("pthread_mutex_unlock({:p})", self.ptr);
+        //trace!("pthread_mutex_unlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to release mutex : {}", res)));
         }
@@ -182,7 +180,7 @@ impl LockInit for RwLock {
             ));
         }
         let ptr = mem.offset(padding as _) as *mut _;
-        trace!("pthread_rwlock_init({:p})", ptr);
+        //trace!("pthread_rwlock_init({:p})", ptr);
         if pthread_rwlock_init(ptr, &lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_rwlock_init".to_string(),
@@ -202,7 +200,7 @@ impl LockInit for RwLock {
 
         let ptr = mem.offset(padding as _) as *mut _;
 
-        trace!("existing rwlock ({:p})", ptr);
+        //trace!("existing rwlock ({:p})", ptr);
         let lock = Box::new(Self {
             ptr,
             data: UnsafeCell::new(data),
@@ -223,7 +221,7 @@ impl LockImpl for RwLock {
 
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_rwlock_wrlock(self.ptr) };
-        trace!("pthread_rwlock_wrlock({:p})", self.ptr);
+        //trace!("pthread_rwlock_wrlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!(
                 "Failed to acquire writeable rwlock : {}",
@@ -241,7 +239,7 @@ impl LockImpl for RwLock {
         };
 
         let res = unsafe { pthread_rwlock_timedwrlock(self.ptr, &timespec) };
-        trace!("pthread_rwlock_timedwrlock({:p})", self.ptr);
+        //trace!("pthread_rwlock_timedwrlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!(
                 "Failed to acquire writeable rwlock : {}",
@@ -254,7 +252,7 @@ impl LockImpl for RwLock {
 
     fn rlock(&self) -> Result<ReadLockGuard<'_>> {
         let res = unsafe { pthread_rwlock_rdlock(self.ptr) };
-        trace!("pthread_rwlock_rdlock({:p})", self.ptr);
+        //trace!("pthread_rwlock_rdlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!(
                 "Failed to acquire readable rwlock : {}",
@@ -272,7 +270,7 @@ impl LockImpl for RwLock {
         };
 
         let res = unsafe { pthread_rwlock_timedrdlock(self.ptr, &timespec) };
-        trace!("pthread_rwlock_timedrdlock({:p})", self.ptr);
+        //trace!("pthread_rwlock_timedrdlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!(
                 "Failed to acquire readable rwlock : {}",
@@ -285,7 +283,7 @@ impl LockImpl for RwLock {
 
     fn release(&self) -> Result<()> {
         let res = unsafe { pthread_rwlock_unlock(self.ptr) };
-        trace!("pthread_rwlock_unlock({:p})", self.ptr);
+        //trace!("pthread_rwlock_unlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to release rwlock : {}", res)));
         }

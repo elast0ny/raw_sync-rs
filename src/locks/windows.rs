@@ -14,8 +14,6 @@ use winapi::{
     },
 };
 
-use log::*;
-
 use super::{LockGuard, LockImpl, LockInit};
 use crate::{Result, Timeout};
 
@@ -36,12 +34,7 @@ impl LockInit for Mutex {
         while mutex_handle == NULL {
             mutex_id = rand::random::<u32>();
             let path = CString::new(format!("mutex_{}", mutex_id)).unwrap();
-            trace!(
-                "CreateMutexExA(NULL, '{}', 0x{:X}, 0x{:X})",
-                path.to_string_lossy(),
-                CREATE_MUTEX_INITIAL_OWNER,
-                MUTEX_ALL_ACCESS
-            );
+            //trace!("CreateMutexExA(NULL, '{}', 0x{:X}, 0x{:X})",path.to_string_lossy(),CREATE_MUTEX_INITIAL_OWNER,MUTEX_ALL_ACCESS);
             mutex_handle = CreateMutexExA(
                 null_mut(),
                 path.as_ptr() as *mut _,
@@ -66,12 +59,7 @@ impl LockInit for Mutex {
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let mutex_id = *(mem as *mut u32);
         let path = CString::new(format!("mutex_{}", mutex_id)).unwrap();
-        trace!(
-            "OpenMutexA(0x{:X}, 0x{:X}, '{}')",
-            SYNCHRONIZE,
-            FALSE,
-            path.to_string_lossy()
-        );
+        //trace!("OpenMutexA(0x{:X}, 0x{:X}, '{}')", SYNCHRONIZE,FALSE,path.to_string_lossy());
         let mutex_handle = OpenMutexA(SYNCHRONIZE, FALSE as _, path.as_ptr() as *mut _);
         if mutex_handle == NULL {
             return Err(From::from(format!(
@@ -91,7 +79,7 @@ impl LockInit for Mutex {
 
 impl Drop for Mutex {
     fn drop(&mut self) {
-        trace!("CloseHandle(0x{:X})", self.handle as usize);
+        //trace!("CloseHandle(0x{:X})", self.handle as usize);
         unsafe { CloseHandle(self.handle) };
     }
 }
@@ -103,7 +91,7 @@ impl LockImpl for Mutex {
 
     fn lock(&self) -> Result<LockGuard<'_>> {
         let wait_res = unsafe { WaitForSingleObject(self.handle, INFINITE) };
-        trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
+        //trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
         if wait_res == WAIT_OBJECT_0 {
             Ok(LockGuard::new(self))
         } else if wait_res == WAIT_ABANDONED {
@@ -126,7 +114,7 @@ impl LockImpl for Mutex {
                 },
             )
         };
-        trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
+        //trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
         if wait_res == WAIT_OBJECT_0 {
             Ok(LockGuard::new(self))
         } else if wait_res == WAIT_ABANDONED {
@@ -140,7 +128,7 @@ impl LockImpl for Mutex {
     }
 
     fn release(&self) -> Result<()> {
-        trace!("ReleaseMutex(0x{:X})", self.handle as usize);
+        //trace!("ReleaseMutex(0x{:X})", self.handle as usize);
         if unsafe { ReleaseMutex(self.handle) } == 0 {
             Err(From::from(
                 "Could not release mutex as we did not own it".to_string(),
