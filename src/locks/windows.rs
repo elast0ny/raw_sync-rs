@@ -17,7 +17,7 @@ use winapi::{
 use log::*;
 
 use super::{LockGuard, LockImpl, LockInit};
-use crate::Result;
+use crate::{Result, Timeout};
 
 pub struct Mutex {
     handle: HANDLE,
@@ -97,6 +97,10 @@ impl Drop for Mutex {
 }
 
 impl LockImpl for Mutex {
+    fn as_raw(&self) -> *mut std::ffi::c_void {
+        self.handle as _
+    }
+
     fn lock(&self) -> Result<LockGuard<'_>> {
         let wait_res = unsafe { WaitForSingleObject(self.handle, INFINITE) };
         trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
@@ -111,6 +115,30 @@ impl LockImpl for Mutex {
             )))
         }
     }
+
+    fn lock_timeout(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+        let wait_res = unsafe {
+            WaitForSingleObject(
+                self.handle,
+                match timeout {
+                    Timeout::Infinite => INFINITE,
+                    Timeout::Val(d) => d.as_millis() as u32,
+                },
+            )
+        };
+        trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
+        if wait_res == WAIT_OBJECT_0 {
+            Ok(LockGuard::new(self))
+        } else if wait_res == WAIT_ABANDONED {
+            panic!("A thread holding the mutex has left it in a poisened state");
+        } else {
+            Err(From::from(format!(
+                "Failed to aquire lock with value : 0x{:X}",
+                wait_res
+            )))
+        }
+    }
+
     fn release(&self) -> Result<()> {
         trace!("ReleaseMutex(0x{:X})", self.handle as usize);
         if unsafe { ReleaseMutex(self.handle) } == 0 {

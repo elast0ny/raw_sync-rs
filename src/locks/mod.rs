@@ -12,7 +12,7 @@ cfg_if::cfg_if! {
     }
 }
 pub use os::*;
-use crate::Result;
+use crate::{Result, Timeout};
 
 /// Used to wrap an acquired lock's data. Lock is automatically released on `Drop`
 pub struct LockGuard<'t> {
@@ -77,14 +77,24 @@ pub trait LockInit {
 }
 
 pub trait LockImpl {
+    fn as_raw(&self) -> *mut std::ffi::c_void;
     /// Acquires the lock
     fn lock(&self) -> Result<LockGuard<'_>>;
+
+    /// Acquires lock with timeout
+    fn lock_timeout(&self, timeout: Timeout) -> Result<LockGuard<'_>>;
+
     /// Release the lock
     fn release(&self) -> Result<()>;
 
     /// Acquires the lock for read access only. This method uses `lock()` as a fallback
     fn rlock(&self) -> Result<ReadLockGuard<'_>> {
         Ok(self.lock()?.into_read_guard())
+    }
+
+    /// Acquires the lock for read access only with timeout. This method uses `lock()` as a fallback
+    fn rlock_timeout(&self, timeout: Timeout) -> Result<ReadLockGuard<'_>> {
+        Ok(self.lock_timeout(timeout)?.into_read_guard())
     }
 
     /// Leaks the inner data without acquiring the lock

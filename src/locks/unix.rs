@@ -88,6 +88,10 @@ impl Drop for Mutex {
 }
 
 impl LockImpl for Mutex {
+    fn as_raw(&self) -> *mut std::ffi::c_void {
+        self.ptr as _
+    }
+
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_mutex_lock(self.ptr) };
         trace!("pthread_mutex_lock({:p})", self.ptr);
@@ -97,6 +101,17 @@ impl LockImpl for Mutex {
 
         Ok(LockGuard::new(self))
     }
+
+    fn lock_timeout(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+        let res = unsafe { pthread_mutex_lock(self.ptr) };
+        trace!("pthread_mutex_lock({:p})", self.ptr);
+        if res != 0 {
+            return Err(From::from(format!("Failed to acquire mutex : {}", res)));
+        }
+
+        Ok(LockGuard::new(self))
+    }
+    
     fn release(&self) -> Result<()> {
         let res = unsafe { pthread_mutex_unlock(self.ptr) };
         trace!("pthread_mutex_unlock({:p})", self.ptr);
@@ -170,6 +185,10 @@ impl Drop for RwLock {
 }
 
 impl LockImpl for RwLock {
+    fn as_raw(&self) -> *mut std::ffi::c_void {
+        self.ptr as _
+    }
+
     fn lock(&self) -> Result<LockGuard<'_>> {
         let res = unsafe { pthread_rwlock_wrlock(self.ptr) };
         trace!("pthread_rwlock_wrlock({:p})", self.ptr);
@@ -182,6 +201,7 @@ impl LockImpl for RwLock {
 
         Ok(LockGuard::new(self))
     }
+
     fn rlock(&self) -> Result<ReadLockGuard<'_>> {
         let res = unsafe { pthread_rwlock_rdlock(self.ptr) };
         trace!("pthread_rwlock_rdlock({:p})", self.ptr);
