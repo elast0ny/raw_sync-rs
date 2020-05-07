@@ -1,32 +1,59 @@
 use std::cell::UnsafeCell;
-use std::mem::size_of;
+use std::mem::{size_of, MaybeUninit};
+use std::time::Duration;
 
 use libc::{
+    timespec,
+    clock_gettime,
+    CLOCK_REALTIME,
+
     //Mutex defs
-    pthread_mutex_init,
-    pthread_mutex_lock,
     pthread_mutex_t,
-    pthread_mutex_unlock,
+    pthread_mutexattr_t,
     pthread_mutexattr_init,
     pthread_mutexattr_setpshared,
-    pthread_mutexattr_t,
-
+    pthread_mutex_init,
+    pthread_mutex_lock,
+    pthread_mutex_timedlock,
+    pthread_mutex_unlock,
+    
     //Rwlock defs
-    pthread_rwlock_init,
-    pthread_rwlock_rdlock,
     pthread_rwlock_t,
-    pthread_rwlock_unlock,
-    pthread_rwlock_wrlock,
+    pthread_rwlockattr_t,
     pthread_rwlockattr_init,
     pthread_rwlockattr_setpshared,
-    pthread_rwlockattr_t,
+    pthread_rwlock_init,
+    pthread_rwlock_rdlock,
+    //pthread_rwlock_timedrdlock,
+    pthread_rwlock_wrlock,
+    //pthread_rwlock_timedwrlock,
+    pthread_rwlock_unlock,
 
     PTHREAD_PROCESS_SHARED,
 };
+
+extern "C" {
+    fn pthread_rwlock_timedrdlock(attr: *mut pthread_rwlock_t, host: *const timespec) -> i32;
+    fn pthread_rwlock_timedwrlock(attr: *mut pthread_rwlock_t, host: *const timespec) -> i32;
+}
+
 use log::*;
 
 use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};
-use crate::Result;
+use crate::{Result, Timeout};
+
+/// Adds a duration to the current time
+pub (crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
+    unsafe {
+        let mut cur_time: timespec = MaybeUninit::uninit().assume_init();
+        // Get current time
+        clock_gettime(CLOCK_REALTIME, &mut cur_time);
+        // Add duration
+        cur_time.tv_sec += d.as_secs() as i64;
+        cur_time.tv_nsec += d.subsec_nanos() as i64;
+        cur_time
+    }
+}
 
 pub struct Mutex {
     ptr: *mut pthread_mutex_t,
@@ -41,7 +68,7 @@ impl LockInit for Mutex {
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
-        let mut lock_attr: pthread_mutexattr_t = std::mem::zeroed();
+        let mut lock_attr: pthread_mutexattr_t = MaybeUninit::uninit().assume_init();
         if pthread_mutexattr_init(&mut lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_mutexattr_t".to_string(),
@@ -102,9 +129,14 @@ impl LockImpl for Mutex {
         Ok(LockGuard::new(self))
     }
 
-    fn lock_timeout(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
-        let res = unsafe { pthread_mutex_lock(self.ptr) };
-        trace!("pthread_mutex_lock({:p})", self.ptr);
+    fn try_lock(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+        let timespec: timespec = match timeout {
+            Timeout::Infinite => return self.lock(),
+            Timeout::Val(d) => abs_timespec_from_duration(d),
+        };
+
+        let res = unsafe { pthread_mutex_timedlock(self.ptr, &timespec) };
+        trace!("pthread_mutex_timedlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to acquire mutex : {}", res)));
         }
@@ -138,7 +170,7 @@ impl LockInit for RwLock {
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
-        let mut lock_attr: pthread_rwlockattr_t = std::mem::zeroed();
+        let mut lock_attr: pthread_rwlockattr_t = MaybeUninit::uninit().assume_init();
         if pthread_rwlockattr_init(&mut lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_rwlockattr_t".to_string(),
@@ -202,6 +234,24 @@ impl LockImpl for RwLock {
         Ok(LockGuard::new(self))
     }
 
+    fn try_lock(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+        let timespec: timespec = match timeout {
+            Timeout::Infinite => return self.lock(),
+            Timeout::Val(d) => abs_timespec_from_duration(d),
+        };
+
+        let res = unsafe { pthread_rwlock_timedwrlock(self.ptr, &timespec) };
+        trace!("pthread_rwlock_timedwrlock({:p})", self.ptr);
+        if res != 0 {
+            return Err(From::from(format!(
+                "Failed to acquire writeable rwlock : {}",
+                res
+            )));
+        }
+
+        Ok(LockGuard::new(self))
+    }
+
     fn rlock(&self) -> Result<ReadLockGuard<'_>> {
         let res = unsafe { pthread_rwlock_rdlock(self.ptr) };
         trace!("pthread_rwlock_rdlock({:p})", self.ptr);
@@ -214,6 +264,25 @@ impl LockImpl for RwLock {
 
         Ok(ReadLockGuard::new(self))
     }
+
+    fn try_rlock(&self, timeout: Timeout) -> Result<ReadLockGuard<'_>> {
+        let timespec: timespec = match timeout {
+            Timeout::Infinite => return self.rlock(),
+            Timeout::Val(d) => abs_timespec_from_duration(d),
+        };
+
+        let res = unsafe { pthread_rwlock_timedrdlock(self.ptr, &timespec) };
+        trace!("pthread_rwlock_timedrdlock({:p})", self.ptr);
+        if res != 0 {
+            return Err(From::from(format!(
+                "Failed to acquire readable rwlock : {}",
+                res
+            )));
+        }
+
+        Ok(ReadLockGuard::new(self))
+    }
+
     fn release(&self) -> Result<()> {
         let res = unsafe { pthread_rwlock_unlock(self.ptr) };
         trace!("pthread_rwlock_unlock({:p})", self.ptr);

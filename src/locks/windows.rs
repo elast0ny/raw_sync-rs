@@ -116,7 +116,7 @@ impl LockImpl for Mutex {
         }
     }
 
-    fn lock_timeout(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+    fn try_lock(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
         let wait_res = unsafe {
             WaitForSingleObject(
                 self.handle,
