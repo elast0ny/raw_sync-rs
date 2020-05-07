@@ -59,8 +59,12 @@ pub struct Mutex {
 }
 
 impl LockInit for Mutex {
-    fn size_of() -> usize {
-        size_of::<pthread_mutex_t>()
+    fn size_of(addr: Option<*mut u8>) -> usize {
+        let padding = match addr {
+            Some(mem) => mem.align_offset(size_of::<*mut u8>() as _),
+            None => 0,
+        };
+        padding + size_of::<pthread_mutex_t>()
     }
 
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
@@ -161,8 +165,12 @@ pub struct RwLock {
 }
 
 impl LockInit for RwLock {
-    fn size_of() -> usize {
-        size_of::<pthread_rwlock_t>()
+    fn size_of(addr: Option<*mut u8>) -> usize {
+        let padding = match addr {
+            Some(mem) => mem.align_offset(size_of::<*mut u8>() as _),
+            None => 0,
+        };
+        padding + size_of::<pthread_rwlock_t>()
     }
 
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {

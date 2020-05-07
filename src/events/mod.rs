@@ -21,7 +21,7 @@ pub enum EventState {
 
 pub trait EventInit {
     /// Size required for the event's internal representation
-    fn size_of() -> usize;
+    fn size_of(addr: Option<*mut u8>) -> usize;
     /// Initializes a new instance of the event in the provided buffer and returns the number of used bytes
     unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)>;
     /// Re-uses an event from an already initialized location and returns the number of used bytes
@@ -47,7 +47,7 @@ pub struct BusyEvent {
     inner: *mut InnerBusy,
 }
 impl EventInit for BusyEvent {
-    fn size_of() -> usize {
+    fn size_of(_addr: Option<*mut u8>) -> usize {
         size_of::<InnerBusy>()
     }
 
@@ -59,7 +59,7 @@ impl EventInit for BusyEvent {
         inner.auto_reset = if auto_reset { 1 } else { 0 };
         obj.set(EventState::Clear)?;
 
-        Ok((Box::new(obj), Self::size_of()))
+        Ok((Box::new(obj), Self::size_of(None)))
     }
 
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)> {
@@ -71,7 +71,7 @@ impl EventInit for BusyEvent {
             return Err(From::from("Existing BusyEvent is corrupted"));
         }
 
-        Ok((Box::new(obj), Self::size_of()))
+        Ok((Box::new(obj), Self::size_of(None)))
     }
 }
 fn busy_wait_auto(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {

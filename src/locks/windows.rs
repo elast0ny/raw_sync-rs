@@ -23,7 +23,7 @@ pub struct Mutex {
 }
 
 impl LockInit for Mutex {
-    fn size_of() -> usize {
+    fn size_of(_addr: Option<*mut u8>) -> usize {
         size_of::<u32>()
     }
 
@@ -53,7 +53,7 @@ impl LockInit for Mutex {
         // Write the mutex id to the backing memory
         *(mem as *mut u32) = mutex_id;
 
-        Ok((mutex, Self::size_of()))
+        Ok((mutex, Self::size_of(None)))
     }
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
@@ -73,7 +73,7 @@ impl LockInit for Mutex {
             data: UnsafeCell::new(data),
         });
 
-        Ok((mutex, Self::size_of()))
+        Ok((mutex, Self::size_of(None)))
     }
 }
 

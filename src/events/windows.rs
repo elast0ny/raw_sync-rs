@@ -25,7 +25,7 @@ impl Drop for Event {
     }
 }
 impl EventInit for Event {
-    fn size_of() -> usize {
+    fn size_of(_addr: Option<*mut u8>) -> usize {
         size_of::<u32>()
     }
 
@@ -46,7 +46,7 @@ impl EventInit for Event {
 
         let obj: Box<dyn EventImpl> = Box::new(Event { handle });
         *(mem as *mut u32) = id;
-        Ok((obj, Self::size_of()))
+        Ok((obj, Self::size_of(None)))
     }
 
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)> {
@@ -66,7 +66,7 @@ impl EventInit for Event {
             )));
         }
 
-        Ok((Box::new(Event { handle }), Self::size_of()))
+        Ok((Box::new(Event { handle }), Self::size_of(None)))
     }
 }
 impl EventImpl for Event {
