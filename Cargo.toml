@@ -1,22 +1,28 @@
 [package]
 name = "raw_sync"
+description = "Lightweight wrapper around OS synchronization primitives"
 version = "0.1.0"
 authors = ["elast0ny <elast0ny00@gmail.com>"]
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+readme = "README.md"
+documentation = "https://docs.rs/raw_sync"
+repository  = "https://github.com/elast0ny/raw_sync-rs"
+keywords = ["shmem", "shared", "memory", "inter-process", "process"]
+categories = ["os::unix-apis","os::windows-apis","concurrency"]
 
 [dependencies]
 cfg-if = "0.*"
 
 [dev-dependencies]
-log = "0.4"
-env_logger = "0.7"
+log = "0.*"
+env_logger = "0.*"
 
 [target.'cfg(windows)'.dependencies]
 rand = "0.*"
-winapi = {version = "0.3", features = ["winbase", "winerror", "ntdef", "synchapi", "handleapi"]}
+winapi = {version = "0.*", features = ["winbase", "winerror", "ntdef", "synchapi", "handleapi"]}
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.10"
-libc = "0.2"
+nix = "0.*"
+libc = "0.*"
