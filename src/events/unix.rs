@@ -15,6 +15,7 @@ use libc::{
     pthread_condattr_t,
     PTHREAD_PROCESS_SHARED,
 };
+//use log::*;
 
 use crate::events::*;
 use crate::locks::*;
@@ -30,6 +31,7 @@ pub struct Event {
     inner: *mut InnerEvent,
 }
 impl EventInit for Event {
+
     fn size_of(addr: Option<*mut u8>) -> usize {
         let mutex_size = Mutex::size_of(addr);
         let padding = match addr {
@@ -41,15 +43,18 @@ impl EventInit for Event {
 
     unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)> {
         let (mutex, used_bytes) = Mutex::new(mem, null_mut())?;
-        let ptr = mem.add(used_bytes).align_offset(size_of::<*mut u8>() as _) as *mut InnerEvent;
+        let ptr = mem.add(used_bytes);
+        let ptr = ptr.add(ptr.align_offset(size_of::<*mut u8>() as _)) as *mut InnerEvent;
         let inner = &mut *ptr;
 
         let mut attrs: pthread_condattr_t = MaybeUninit::uninit().assume_init();
+        //trace!("pthread_condattr_init()");
         if pthread_condattr_init(&mut attrs) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_condattr_init".to_string(),
             ));
         }
+        //trace!("pthread_condattr_setpshared()");
         if pthread_condattr_setpshared(&mut attrs, PTHREAD_PROCESS_SHARED) != 0 {
             return Err(From::from(
                 "Failed to set pthread_condattr_setpshared(PTHREAD_PROCESS_SHARED)".to_string(),
@@ -67,12 +72,14 @@ impl EventInit for Event {
 
         let obj = Box::new(Self { mutex, inner });
 
-        Ok((obj, ptr as usize - mem as usize))
+        Ok((obj, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)> {
         let (mutex, used_bytes) = Mutex::from_existing(mem, null_mut())?;
-        let ptr = mem.add(used_bytes + size_of::<*mut u8>() as usize) as *mut InnerEvent;
+        let ptr = mem.add(used_bytes);
+        let ptr = ptr.add(ptr.align_offset(size_of::<*mut u8>() as _)) as *mut InnerEvent;
+
         let inner = &mut *ptr;
 
         if inner.auto_reset > 1 || inner.signal > 1 {
@@ -81,7 +88,7 @@ impl EventInit for Event {
 
         let obj = Box::new(Self { mutex, inner });
 
-        Ok((obj, ptr as usize - mem as usize))
+        Ok((obj, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 }
 

@@ -31,6 +31,7 @@ use libc::{
 
     PTHREAD_PROCESS_SHARED,
 };
+//use log::*;
 
 extern "C" {
     fn pthread_rwlock_timedrdlock(attr: *mut pthread_rwlock_t, host: *const timespec) -> i32;
@@ -71,11 +72,13 @@ impl LockInit for Mutex {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let mut lock_attr: pthread_mutexattr_t = MaybeUninit::uninit().assume_init();
+        //trace!("pthread_mutexattr_init");
         if pthread_mutexattr_init(&mut lock_attr) != 0 {
             return Err(From::from(
                 "Failed to initialize pthread_mutexattr_t".to_string(),
             ));
         }
+        //trace!("pthread_mutexattr_setpshared");
         if pthread_mutexattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED) != 0 {
             return Err(From::from(
                 "Failed to set pthread_mutexattr_setpshared(PTHREAD_PROCESS_SHARED)".to_string(),
@@ -94,7 +97,7 @@ impl LockInit for Mutex {
             data: UnsafeCell::new(data),
         });
 
-        Ok((mutex, ptr as usize - mem as usize))
+        Ok((mutex, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
@@ -108,7 +111,7 @@ impl LockInit for Mutex {
             data: UnsafeCell::new(data),
         });
 
-        Ok((mutex, ptr as usize - mem as usize))
+        Ok((mutex, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 }
 
@@ -200,7 +203,7 @@ impl LockInit for RwLock {
             data: UnsafeCell::new(data),
         });
 
-        Ok((lock, ptr as usize - mem as usize))
+        Ok((lock, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
@@ -214,7 +217,7 @@ impl LockInit for RwLock {
             data: UnsafeCell::new(data),
         });
 
-        Ok((lock, ptr as usize - mem as usize))
+        Ok((lock, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 }
 
