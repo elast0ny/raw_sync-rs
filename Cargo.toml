@@ -1,7 +1,7 @@
 [package]
 name = "raw_sync"
 description = "Lightweight wrapper around OS synchronization primitives"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["elast0ny <elast0ny00@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
@@ -21,7 +21,7 @@ env_logger = "0.*"
 
 [target.'cfg(windows)'.dependencies]
 rand = "0.*"
-winapi = {version = "0.*", features = ["winbase", "winerror", "ntdef", "synchapi", "handleapi"]}
+winapi = {version = "0.*", features = ["winnt", "winbase", "winerror", "ntdef", "synchapi", "handleapi"]}
 
 [target.'cfg(unix)'.dependencies]
 nix = "0.*"
