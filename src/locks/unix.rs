@@ -41,6 +41,16 @@ extern "C" {
 use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};
 use crate::{Result, Timeout};
 
+cfg_if::cfg_if! {
+	if #[cfg(target_pointer_width = "32")] {
+		type IntArchType = i32;
+	} else if #[cfg(target_pointer_width = "64")] {
+		type IntArchType = i64;
+	} else {
+		unimplemented!("This crate does not support your OS yet !");
+	}
+}
+
 /// Adds a duration to the current time
 pub(crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
     unsafe {
@@ -48,8 +58,8 @@ pub(crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
         // Get current time
         clock_gettime(CLOCK_REALTIME, &mut cur_time);
         // Add duration
-        cur_time.tv_sec += d.as_secs() as i64;
-        cur_time.tv_nsec += d.subsec_nanos() as i64;
+        cur_time.tv_sec += d.as_secs() as IntArchType;
+        cur_time.tv_nsec += d.subsec_nanos() as IntArchType;
         cur_time
     }
 }
