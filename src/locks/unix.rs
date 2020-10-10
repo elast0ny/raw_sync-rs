@@ -48,8 +48,8 @@ pub(crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
         // Get current time
         clock_gettime(CLOCK_REALTIME, &mut cur_time);
         // Add duration
-        cur_time.tv_sec += d.as_secs() as isize as _;
-        cur_time.tv_nsec += d.subsec_nanos() as isize as _;
+        cur_time.tv_sec += d.as_secs()  as nix::sys::time::time_t;
+        cur_time.tv_nsec += d.subsec_nanos() as nix::sys::time::time_t;
         cur_time
     }
 }
