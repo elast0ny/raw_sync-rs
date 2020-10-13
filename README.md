@@ -4,9 +4,9 @@
 [![mio](https://docs.rs/raw_sync/badge.svg)](https://docs.rs/raw_sync/)
 ![Lines of Code](https://tokei.rs/b1/github/elast0ny/raw_sync-rs)
 
-This crate is provides a lightweight wrapper around OS synchronization primitives.
+This crate provides a lightweight wrapper around OS synchronization primitives.
 
-It was mainly developed to be used with the `shared_memory` crate for when cross-process synchronization is required through shared memory.
+It was mainly developed to be used with the [shared_memory](https://github.com/elast0ny/shared_memory-rs) crate for cross-process synchronization through shared memory.
 
 
 ## Features
