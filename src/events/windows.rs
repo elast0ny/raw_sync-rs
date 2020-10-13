@@ -29,6 +29,7 @@ impl EventInit for Event {
         size_of::<u32>()
     }
 
+    #[allow(clippy::new_ret_no_self)]
     unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)> {
         let mut handle: HANDLE = NULL;
         let mut id: u32 = 0;

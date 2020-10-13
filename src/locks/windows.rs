@@ -27,6 +27,7 @@ impl LockInit for Mutex {
         size_of::<u32>()
     }
 
+    #[allow(clippy::new_ret_no_self)]
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         // Find a mutex id that doesnt collide with another
         let mut mutex_handle: HANDLE = NULL;

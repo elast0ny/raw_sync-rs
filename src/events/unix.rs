@@ -31,22 +31,23 @@ pub struct Event {
     inner: *mut InnerEvent,
 }
 impl EventInit for Event {
-
     fn size_of(addr: Option<*mut u8>) -> usize {
         let mutex_size = Mutex::size_of(addr);
         let padding = match addr {
-            Some(mem) => unsafe{mem.add(mutex_size).align_offset(size_of::<*mut u8>() as _)},
+            Some(mem) => unsafe { mem.add(mutex_size).align_offset(size_of::<*mut u8>() as _) },
             None => 0,
         };
         Mutex::size_of(addr) + padding + size_of::<InnerEvent>()
     }
 
+    #[allow(clippy::new_ret_no_self)]
     unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)> {
         let (mutex, used_bytes) = Mutex::new(mem, null_mut())?;
         let ptr = mem.add(used_bytes);
         let ptr = ptr.add(ptr.align_offset(size_of::<*mut u8>() as _)) as *mut InnerEvent;
         let inner = &mut *ptr;
 
+        #[allow(clippy::uninit_assumed_init)]
         let mut attrs: pthread_condattr_t = MaybeUninit::uninit().assume_init();
         //trace!("pthread_condattr_init()");
         if pthread_condattr_init(&mut attrs) != 0 {

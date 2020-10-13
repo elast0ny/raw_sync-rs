@@ -18,8 +18,12 @@ pub trait LockInit {
     /// Size required for the lock's internal representation
     fn size_of(addr: Option<*mut u8>) -> usize;
     /// Initializes a new instance of the lock in the provided buffer and returns the number of used bytes
+    /// # Safety
+    /// This function is unsafe because it cannot guarantee that the provided memory is valid.
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)>;
     /// Re-uses a lock from an already initialized location and returns the number of used bytes
+    /// # Safety
+    /// This function is unsafe because it cannot guarantee that the provided memory is valid.
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)>;
 }
 
@@ -46,6 +50,7 @@ pub trait LockImpl {
 
     /// Leaks the inner data without acquiring the lock
     #[doc(hidden)]
+    #[allow(clippy::mut_from_ref)]
     unsafe fn get_inner(&self) -> &mut *mut u8;
 }
 
