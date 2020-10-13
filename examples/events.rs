@@ -46,12 +46,12 @@ fn event_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
 
         info!("\tWaiting until timeout");
         if auto_reset {
-            if let Ok(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
+            if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_ok() {
                 panic!("This should have timed out !");
             };
             info!("\ttimed out !");
         } else {
-            if let Err(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
+            if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_err() {
                 panic!("This shouldn't have timed out !");
             };
             info!("\tSignaled !");
@@ -71,7 +71,7 @@ fn event_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
     thread::sleep(time::Duration::from_secs(3));
 
     info!("Waiting until timeout");
-    if let Ok(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
+    if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_ok() {
         panic!("This should have timed out !");
     };
     info!("timed out !");
@@ -99,12 +99,12 @@ fn busy_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
 
         info!("\tWaiting until timeout");
         if auto_reset {
-            if let Ok(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
+            if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_ok() {
                 panic!("This should have timed out !");
             };
             info!("\ttimed out !");
         } else {
-            if let Err(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
+            if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_err() {
                 panic!("This shouldn't have timed out !");
             };
             info!("\tSignaled !");
@@ -124,7 +124,7 @@ fn busy_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
     thread::sleep(time::Duration::from_secs(3));
 
     info!("Waiting until timeout");
-    if let Ok(_) = obj.wait(Timeout::Val(time::Duration::from_secs(1))) {
+    if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_ok() {
         panic!("This should have timed out !");
     };
     info!("timed out !");
