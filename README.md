@@ -1,4 +1,5 @@
 # raw_sync
+[![Build Status](https://travis-ci.org/elast0ny/raw_sync-rs.svg?branch=master)](https://travis-ci.org/elast0ny/raw_sync-rs)
 [![crates.io](https://img.shields.io/crates/v/raw_sync.svg)](https://crates.io/crates/raw_sync)
 [![mio](https://docs.rs/raw_sync/badge.svg)](https://docs.rs/raw_sync/)
 ![Lines of Code](https://tokei.rs/b1/github/elast0ny/raw_sync-rs)
