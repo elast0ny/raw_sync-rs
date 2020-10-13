@@ -1,6 +1,7 @@
 use std::cell::UnsafeCell;
 use std::mem::{size_of, MaybeUninit};
 use std::time::Duration;
+use std::ptr::null_mut;
 
 use libc::{
     clock_gettime,
@@ -8,7 +9,7 @@ use libc::{
     pthread_mutex_lock,
     //Mutex defs
     pthread_mutex_t,
-    pthread_mutex_timedlock,
+    //pthread_mutex_timedlock,
     pthread_mutex_unlock,
 
     pthread_mutexattr_init,
@@ -36,6 +37,36 @@ use libc::{
 extern "C" {
     fn pthread_rwlock_timedrdlock(attr: *mut pthread_rwlock_t, host: *const timespec) -> i32;
     fn pthread_rwlock_timedwrlock(attr: *mut pthread_rwlock_t, host: *const timespec) -> i32;
+}
+
+#[cfg(not(target_os = "macos"))]
+use libc::pthread_mutex_timedlock;
+#[cfg(target_os = "macos")]
+pub unsafe fn pthread_mutex_timedlock(lock: *mut pthread_mutex_t, abstime: &timespec) -> i32 {
+    let mut timenow: timespec = timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    let timesleep: timespec = timespec {
+        tv_sec: 0,
+        tv_nsec: 10_000_000, // 10ms
+    };
+    let mut res: i32;
+    loop {
+        res = libc::pthread_mutex_trylock(lock);
+        if res == libc::EBUSY {
+            // Check timeout before sleeping
+            clock_gettime(CLOCK_REALTIME, &mut timenow);
+            if timenow.tv_sec >= abstime.tv_sec && timenow.tv_nsec >= abstime.tv_nsec {
+                return libc::ETIMEDOUT;
+            }
+            //Sleep for a bit
+            libc::nanosleep(&timesleep, null_mut());
+            continue;
+        }
+        break;
+    }
+    res
 }
 
 use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};
