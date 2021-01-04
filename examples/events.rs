@@ -8,7 +8,7 @@ use raw_sync::{events::*, Timeout};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let mut mem = [0u8; 64];
 
     // Regular event
@@ -51,7 +51,10 @@ fn event_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
             };
             info!("\ttimed out !");
         } else {
-            if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_err() {
+            if obj
+                .wait(Timeout::Val(time::Duration::from_secs(1)))
+                .is_err()
+            {
                 panic!("This shouldn't have timed out !");
             };
             info!("\tSignaled !");
@@ -104,7 +107,10 @@ fn busy_example(mem: *mut u8, auto_reset: bool) -> Result<()> {
             };
             info!("\ttimed out !");
         } else {
-            if obj.wait(Timeout::Val(time::Duration::from_secs(1))).is_err() {
+            if obj
+                .wait(Timeout::Val(time::Duration::from_secs(1)))
+                .is_err()
+            {
                 panic!("This shouldn't have timed out !");
             };
             info!("\tSignaled !");
