@@ -13,16 +13,16 @@ keywords = ["shmem", "shared", "memory", "inter-process", "process"]
 categories = ["os::unix-apis","os::windows-apis","concurrency"]
 
 [dependencies]
-cfg-if = "0.*"
+cfg-if = "1.0"
 
 [dev-dependencies]
-log = "0.*"
-env_logger = "0.*"
+log = "0.4"
+env_logger = "0.8"
 
 [target.'cfg(windows)'.dependencies]
-rand = "0.*"
-winapi = {version = "0.*", features = ["winnt", "winbase", "winerror", "ntdef", "synchapi", "handleapi"]}
+rand = "0.8"
+winapi = { version = "0.3", features = ["winnt", "winbase", "winerror", "ntdef", "synchapi", "handleapi"] }
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.*"
-libc = "0.*"
+nix = "0.19"
+libc = "0.2"

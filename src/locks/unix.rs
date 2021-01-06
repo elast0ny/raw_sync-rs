@@ -39,36 +39,37 @@ extern "C" {
 }
 
 cfg_if::cfg_if! {
- if #[cfg(target_os = "macos")] {
-    pub unsafe fn pthread_mutex_timedlock(lock: *mut pthread_mutex_t, abstime: &timespec) -> i32 {
-        let mut timenow: timespec = timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        let timesleep: timespec = timespec {
-            tv_sec: 0,
-            tv_nsec: 10_000_000, // 10ms
-        };
-        let mut res: i32;
-        loop {
-            res = libc::pthread_mutex_trylock(lock);
-            if res == libc::EBUSY {
-                // Check timeout before sleeping
-                clock_gettime(CLOCK_REALTIME, &mut timenow);
-                if timenow.tv_sec >= abstime.tv_sec && timenow.tv_nsec >= abstime.tv_nsec {
-                    return libc::ETIMEDOUT;
+    if #[cfg(target_os = "macos")] {
+        #[allow(clippy::missing_safety_doc)]
+        pub unsafe fn pthread_mutex_timedlock(lock: *mut pthread_mutex_t, abstime: &timespec) -> i32 {
+            let mut timenow: timespec = timespec {
+                tv_sec: 0,
+                tv_nsec: 0,
+            };
+            let timesleep: timespec = timespec {
+                tv_sec: 0,
+                tv_nsec: 10_000_000, // 10ms
+            };
+            let mut res: i32;
+            loop {
+                res = libc::pthread_mutex_trylock(lock);
+                if res == libc::EBUSY {
+                    // Check timeout before sleeping
+                    clock_gettime(CLOCK_REALTIME, &mut timenow);
+                    if timenow.tv_sec >= abstime.tv_sec && timenow.tv_nsec >= abstime.tv_nsec {
+                        return libc::ETIMEDOUT;
+                    }
+                    // Sleep for a bit
+                    libc::nanosleep(&timesleep, std::ptr::null_mut());
+                    continue;
                 }
-                //Sleep for a bit
-                libc::nanosleep(&timesleep, std::ptr::null_mut());
-                continue;
+                break;
             }
-            break;
-        }
-        res
-    }
- }else {
-    use libc::pthread_mutex_timedlock;
-}
+            res
+       }
+   } else {
+       use libc::pthread_mutex_timedlock;
+   }
 }
 
 use super::{LockGuard, LockImpl, LockInit, ReadLockGuard};

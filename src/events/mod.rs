@@ -22,13 +22,17 @@ pub enum EventState {
 pub trait EventInit {
     /// Size required for the event's internal representation
     fn size_of(addr: Option<*mut u8>) -> usize;
+
     /// Initializes a new instance of the event in the provided buffer and returns the number of used bytes
     /// # Safety
     /// This function is unsafe because it cannot guarantee that the provided memory is valid.
+    #[allow(clippy::new_ret_no_self)]
     unsafe fn new(mem: *mut u8, auto_reset: bool) -> Result<(Box<dyn EventImpl>, usize)>;
+
     /// Re-uses an event from an already initialized location and returns the number of used bytes
     /// # Safety
     /// This function is unsafe because it cannot guarantee that the provided memory is valid.
+    #[allow(clippy::new_ret_no_self)]
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)>;
 }
 
