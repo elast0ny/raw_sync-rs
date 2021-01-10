@@ -93,6 +93,11 @@ impl EventImpl for Event {
         }
     }
 
+    fn wait_allow_spurious_wake_up(&self, timeout: Timeout) -> Result<EventState> {
+        self.wait(timeout)?;
+        Ok(EventState::Signaled)
+    }
+
     fn set(&self, state: EventState) -> Result<()> {
         let res = match state {
             EventState::Clear => {

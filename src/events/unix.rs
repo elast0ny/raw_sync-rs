@@ -95,46 +95,12 @@ impl EventInit for Event {
 
 impl EventImpl for Event {
     fn wait(&self, timeout: Timeout) -> Result<()> {
-        let (guard, timespec) = match timeout {
-            Timeout::Infinite => (self.mutex.lock()?, None),
-            Timeout::Val(d) => {
-                let timespec = abs_timespec_from_duration(d);
-                (self.mutex.try_lock(timeout)?, Some(timespec))
-            }
-        };
+        self.wait_maybe_allow_spurious_wake_up(timeout, false)?;
+        Ok(())
+    }
 
-        let inner = unsafe { &mut *self.inner };
-        let mut res = 0;
-        if let Some(ts) = timespec {
-            while inner.signal != 1 {
-                res = unsafe {
-                    pthread_cond_timedwait(&mut inner.cond, self.mutex.as_raw() as _, &ts)
-                };
-                if res != 0 {
-                    break;
-                }
-            }
-        } else {
-            while inner.signal != 1 {
-                res = unsafe { pthread_cond_wait(&mut inner.cond, self.mutex.as_raw() as _) };
-                if res != 0 {
-                    break;
-                }
-            }
-        }
-
-        // Success
-        let ret = if res == 0 {
-            if inner.auto_reset == 1 {
-                inner.signal = 0;
-            }
-            Ok(())
-        } else {
-            Err(From::from("Failed waiting for signal".to_string()))
-        };
-
-        drop(guard);
-        ret
+    fn wait_allow_spurious_wake_up(&self, timeout: Timeout) -> Result<EventState> {
+        self.wait_maybe_allow_spurious_wake_up(timeout, true)
     }
 
     fn set(&self, state: EventState) -> Result<()> {
@@ -169,5 +135,58 @@ impl EventImpl for Event {
         } else {
             Ok(())
         }
+    }
+}
+
+impl Event {
+    fn wait_maybe_allow_spurious_wake_up(
+        &self,
+        timeout: Timeout,
+        allow_spurious_wake_up: bool,
+    ) -> Result<EventState> {
+        let (guard, timespec) = match timeout {
+            Timeout::Infinite => (self.mutex.lock()?, None),
+            Timeout::Val(d) => {
+                let timespec = abs_timespec_from_duration(d);
+                (self.mutex.try_lock(timeout)?, Some(timespec))
+            }
+        };
+        let inner = unsafe { &mut *self.inner };
+        let mut res = 0;
+        if let Some(ts) = timespec {
+            while inner.signal != 1 {
+                res = unsafe {
+                    pthread_cond_timedwait(&mut inner.cond, self.mutex.as_raw() as _, &ts)
+                };
+                if res != 0 {
+                    break;
+                }
+            }
+        } else {
+            while inner.signal != 1 {
+                res = unsafe { pthread_cond_wait(&mut inner.cond, self.mutex.as_raw() as _) };
+                if res != 0 {
+                    break;
+                }
+                // Got woken up but not Signaled
+                if inner.signal != 1 && allow_spurious_wake_up {
+                    return Ok(EventState::Clear);
+                }
+            }
+        }
+        // Success
+        let ret = if res == 0 {
+            if inner.auto_reset == 1 {
+                inner.signal = 0;
+            }
+            Ok(EventState::Signaled)
+        } else {
+            Err(From::from(format!(
+                "Failed waiting for signal, error code: {}",
+                res
+            )))
+        };
+        drop(guard);
+        ret
     }
 }

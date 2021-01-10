@@ -37,10 +37,13 @@ pub trait EventInit {
 }
 
 pub trait EventImpl {
-    /// Wait for the event to be signaled
-    fn wait(&self, timeout: Timeout) -> Result<()>;
     /// Set the current state of the event
     fn set(&self, state: EventState) -> Result<()>;
+    /// Wait for the event to be signaled
+    fn wait(&self, timeout: Timeout) -> Result<()>;
+    /// Wait for the event to be signaled, but also return if the thread is woken
+    /// up by the OS - this is useful for handing cancellations on Unix.
+    fn wait_allow_spurious_wake_up(&self, timeout: Timeout) -> Result<EventState>;
 }
 
 use std::mem::size_of;
@@ -144,6 +147,11 @@ impl EventImpl for BusyEvent {
         } else {
             busy_wait_manual(&mut inner.signal, timeout)
         }
+    }
+
+    fn wait_allow_spurious_wake_up(&self, timeout: Timeout) -> Result<EventState> {
+        self.wait(timeout)?;
+        Ok(EventState::Signaled)
     }
 
     fn set(&self, state: EventState) -> Result<()> {
