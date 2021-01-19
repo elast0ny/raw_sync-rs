@@ -23,8 +23,8 @@ use crate::{Result, Timeout};
 
 /// Unix-specific extensions to the EventImpl trait
 pub trait EventImplExt {
-    /// Wait on event while also allowing spurious wakes from signals
-    fn inner_wait(&self, timeout: Timeout) -> Result<()>;
+    /// Wait on event while also allowing spurious wakes
+    fn inner_wait(&self, timeout: Timeout, allow_spurious_wakeups: bool) -> Result<()>;
 }
 
 struct InnerEvent {
@@ -61,21 +61,27 @@ impl EventInit for Event {
         let res = pthread_condattr_init(&mut attrs);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         debug!("pthread_condattr_setpshared({:p})", &attrs);
         let res = pthread_condattr_setpshared(&mut attrs, PTHREAD_PROCESS_SHARED);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         debug!("pthread_cond_init({:p})", ptr);
         let res = pthread_cond_init(&mut inner.cond, &attrs);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
         inner.auto_reset = if auto_reset { 1 } else { 0 };
         inner.signal = 0;
@@ -105,51 +111,7 @@ impl EventInit for Event {
 
 impl EventImpl for Event {
     fn wait(&self, timeout: Timeout) -> Result<()> {
-        let (guard, timespec) = match timeout {
-            Timeout::Infinite => (self.mutex.lock()?, None),
-            Timeout::Val(d) => {
-                let timespec = abs_timespec_from_duration(d);
-                (self.mutex.try_lock(timeout)?, Some(timespec))
-            }
-        };
-
-        debug!("Event wait {:p}", self.inner);
-        let inner = unsafe { &mut *self.inner };
-        let mut res = 0;
-        if let Some(ts) = timespec {
-            while inner.signal != 1 {
-                debug!("pthread_cond_timedwait({:p}, {:p})", &inner.cond, self.mutex.as_raw());
-                res = unsafe {
-                    pthread_cond_timedwait(&mut inner.cond, self.mutex.as_raw() as _, &ts)
-                };
-                debug!("\tres = {}", res);
-                if res != 0 {
-                    break;
-                }
-            }
-        } else {
-            while inner.signal != 1 {
-                debug!("pthread_cond_wait({:p}, {:p})", &inner.cond, self.mutex.as_raw());
-                res = unsafe { pthread_cond_wait(&mut inner.cond, self.mutex.as_raw() as _) };
-                debug!("\tres = {}", res);
-                if res != 0 {
-                    break;
-                }
-            }
-        }
-
-        // Success
-        let ret = if res == 0 {
-            if inner.auto_reset == 1 {
-                inner.signal = 0;
-            }
-            Ok(())
-        } else {
-            Err(crate::Error::TimedOut)
-        };
-
-        drop(guard);
-        ret
+        self.inner_wait(timeout, false)
     }
 
     fn set(&self, state: EventState) -> Result<()> {
@@ -179,9 +141,72 @@ impl EventImpl for Event {
         drop(guard);
 
         if res != 0 {
-            Err(crate::Error::EventSetFailed(std::io::Error::from_raw_os_error(res)))
+            Err(crate::Error::EventSetFailed(
+                std::io::Error::from_raw_os_error(res),
+            ))
         } else {
             Ok(())
         }
+    }
+}
+
+impl EventImplExt for Event {
+    /// Wait on event while also allowing spurious wakes
+    fn inner_wait(&self, timeout: Timeout, allow_spurious_wakeups: bool) -> Result<()> {
+        let (guard, timespec) = match timeout {
+            Timeout::Infinite => (self.mutex.lock()?, None),
+            Timeout::Val(d) => {
+                let timespec = abs_timespec_from_duration(d);
+                (self.mutex.try_lock(timeout)?, Some(timespec))
+            }
+        };
+
+        debug!("Event wait {:p}", self.inner);
+        let inner = unsafe { &mut *self.inner };
+        let mut res = 0;
+        while inner.signal != 1 {
+            if let Some(ts) = timespec {
+                debug!(
+                    "pthread_cond_timedwait({:p}, {:p})",
+                    &inner.cond,
+                    self.mutex.as_raw()
+                );
+                res = unsafe {
+                    pthread_cond_timedwait(&mut inner.cond, self.mutex.as_raw() as _, &ts)
+                };
+                debug!("\tres = {}", res);
+                if res != 0 {
+                    break;
+                }
+            } else {
+                debug!(
+                    "pthread_cond_wait({:p}, {:p})",
+                    &inner.cond,
+                    self.mutex.as_raw()
+                );
+                res = unsafe { pthread_cond_wait(&mut inner.cond, self.mutex.as_raw() as _) };
+                debug!("\tres = {}", res);
+                if res != 0 {
+                    break;
+                }
+            }
+
+            if inner.signal == 0 && allow_spurious_wakeups {
+                return Err(crate::Error::SpuriousWake);
+            }
+        }
+
+        // Success
+        let ret = if res == 0 {
+            if inner.auto_reset == 1 {
+                inner.signal = 0;
+            }
+            Ok(())
+        } else {
+            Err(crate::Error::TimedOut)
+        };
+
+        drop(guard);
+        ret
     }
 }

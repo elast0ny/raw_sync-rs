@@ -31,6 +31,7 @@ pub enum Error {
     InitFailed(std::io::Error),
     EventSetFailed(std::io::Error),
     WaitFailed(std::io::Error),
+    SpuriousWake,
     TimedOut,
     EventCorrupted,
 }
@@ -43,6 +44,7 @@ impl std::fmt::Display for crate::Error {
             Self::InitFailed(e) => f.write_str(&format!("Failed to initialize object with OS error : {}", e)),
             Self::EventSetFailed(e) => f.write_str(&format!("Failed to set state of event event with OS error : {}", e)),
             Self::WaitFailed(e) => f.write_str(&format!("Wait failed with OS error : {}", e)),
+            Self::SpuriousWake => f.write_str("A wait call has returned because of external spurious wake up"),
             Self::TimedOut => f.write_str("Wait operation has timed out"),
             Self::EventCorrupted => f.write_str("Event is corrupted"),
         }
