@@ -48,7 +48,7 @@ fn increment_val(id: u8, lock: Box<dyn LockImpl>) {
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
     let mut mem = [0u8; 64];
 
     test_mutex(mem.as_mut_ptr())?;
