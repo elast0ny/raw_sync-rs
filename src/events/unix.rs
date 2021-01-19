@@ -100,7 +100,7 @@ impl EventInit for Event {
         let inner = &mut *ptr;
 
         if inner.auto_reset > 1 || inner.signal > 1 {
-            return Err(crate::Error::EventCorrupted);
+            return Err(crate::Error::ObjectCorrupted);
         }
 
         let obj = Box::new(Self { mutex, inner });
@@ -191,6 +191,7 @@ impl EventImplExt for Event {
                 }
             }
 
+            // signal should be 1 if someone tried to wake us through evt.set(Signaled)
             if inner.signal == 0 && allow_spurious_wakeups {
                 return Err(crate::Error::SpuriousWake);
             }

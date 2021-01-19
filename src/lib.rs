@@ -30,7 +30,7 @@ pub enum Error {
     WaitFailed(std::io::Error),
     SpuriousWake,
     TimedOut,
-    EventCorrupted,
+    ObjectCorrupted,
 }
 
 impl std::fmt::Display for crate::Error {
@@ -55,7 +55,7 @@ impl std::fmt::Display for crate::Error {
                 f.write_str("A wait call has returned because of external spurious wake up")
             }
             Self::TimedOut => f.write_str("Wait operation has timed out"),
-            Self::EventCorrupted => f.write_str("Event is corrupted"),
+            Self::ObjectCorrupted => f.write_str("Object is corrupted"),
         }
     }
 }

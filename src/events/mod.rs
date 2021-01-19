@@ -79,7 +79,7 @@ impl EventInit for BusyEvent {
         let inner = &mut *obj.inner;
 
         if inner.auto_reset > 1 || inner.signal.load(Ordering::Relaxed) > 1 {
-            return Err(crate::Error::EventCorrupted);
+            return Err(crate::Error::ObjectCorrupted);
         }
 
         Ok((Box::new(obj), Self::size_of(None)))
