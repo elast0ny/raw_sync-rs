@@ -1,6 +1,5 @@
-
 #[cfg(feature = "verbose")]
-pub (crate) use ::log;
+pub(crate) use ::log;
 #[macro_use]
 macro_rules! debug {
     ($($x:tt)*) => {
@@ -10,8 +9,6 @@ macro_rules! debug {
         }
     }
 }
-
-
 
 pub(crate) type Result<T> = std::result::Result<T, crate::Error>;
 /// Event implementations
@@ -39,12 +36,24 @@ pub enum Error {
 impl std::fmt::Display for crate::Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::LockFailed(e) => f.write_str(&format!("Failed to acquire lock with OS error : {}", e)),
-            Self::ReleaseFailed(e) => f.write_str(&format!("Failed to release lock with OS error : {}", e)),
-            Self::InitFailed(e) => f.write_str(&format!("Failed to initialize object with OS error : {}", e)),
-            Self::EventSetFailed(e) => f.write_str(&format!("Failed to set state of event event with OS error : {}", e)),
+            Self::LockFailed(e) => {
+                f.write_str(&format!("Failed to acquire lock with OS error : {}", e))
+            }
+            Self::ReleaseFailed(e) => {
+                f.write_str(&format!("Failed to release lock with OS error : {}", e))
+            }
+            Self::InitFailed(e) => f.write_str(&format!(
+                "Failed to initialize object with OS error : {}",
+                e
+            )),
+            Self::EventSetFailed(e) => f.write_str(&format!(
+                "Failed to set state of event event with OS error : {}",
+                e
+            )),
             Self::WaitFailed(e) => f.write_str(&format!("Wait failed with OS error : {}", e)),
-            Self::SpuriousWake => f.write_str("A wait call has returned because of external spurious wake up"),
+            Self::SpuriousWake => {
+                f.write_str("A wait call has returned because of external spurious wake up")
+            }
             Self::TimedOut => f.write_str("Wait operation has timed out"),
             Self::EventCorrupted => f.write_str("Event is corrupted"),
         }

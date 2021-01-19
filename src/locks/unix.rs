@@ -110,26 +110,32 @@ impl LockInit for Mutex {
 
         let ptr = mem.add(padding) as *mut _;
         debug!("Mutex new {:p}", ptr);
-        
+
         debug!("pthread_mutexattr_init({:p})", &lock_attr);
         let res = pthread_mutexattr_init(&mut lock_attr);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
-        
+
         debug!("pthread_mutexattr_setpshared({:p})", &lock_attr);
         let res = pthread_mutexattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
-        
+
         debug!("pthread_mutex_init({:p}, {:p})", ptr, &lock_attr);
         let res = pthread_mutex_init(ptr, &lock_attr);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         let mutex = Box::new(Self {
@@ -142,7 +148,7 @@ impl LockInit for Mutex {
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
-    
+
         let ptr = mem.add(padding) as *mut _;
 
         debug!("Mutex from {:p}", ptr);
@@ -166,12 +172,13 @@ impl LockImpl for Mutex {
     }
 
     fn lock(&self) -> Result<LockGuard<'_>> {
-
         debug!("pthread_mutex_lock({:p})", self.ptr);
         let res = unsafe { pthread_mutex_lock(self.ptr) };
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         Ok(LockGuard::new(self))
@@ -186,12 +193,14 @@ impl LockImpl for Mutex {
         debug!("pthread_mutex_timedlock({:p})", self.ptr);
         let res = unsafe { pthread_mutex_timedlock(self.ptr, &timespec) };
         debug!("\tres = {}", res);
-        
+
         if res != 0 {
             return if res == libc::ETIMEDOUT {
                 Err(crate::Error::TimedOut)
             } else {
-                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)))
+                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(
+                    res,
+                )))
             };
         }
 
@@ -203,7 +212,9 @@ impl LockImpl for Mutex {
         let res = unsafe { pthread_mutex_unlock(self.ptr) };
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::ReleaseFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::ReleaseFailed(
+                std::io::Error::from_raw_os_error(res),
+            ));
         }
         Ok(())
     }
@@ -240,21 +251,27 @@ impl LockInit for RwLock {
         let res = pthread_rwlockattr_init(&mut lock_attr);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
-        
+
         debug!("pthread_rwlockattr_init({:p})", &lock_attr);
         let res = pthread_rwlockattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
-        
+
         debug!("pthread_rwlock_init({:p})", ptr);
         let res = pthread_rwlock_init(ptr, &lock_attr);
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         let lock = Box::new(Self {
@@ -294,7 +311,9 @@ impl LockImpl for RwLock {
         let res = unsafe { pthread_rwlock_wrlock(self.ptr) };
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         Ok(LockGuard::new(self))
@@ -313,7 +332,9 @@ impl LockImpl for RwLock {
             return if res == libc::ETIMEDOUT {
                 Err(crate::Error::TimedOut)
             } else {
-                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)))
+                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(
+                    res,
+                )))
             };
         }
 
@@ -325,7 +346,9 @@ impl LockImpl for RwLock {
         let res = unsafe { pthread_rwlock_rdlock(self.ptr) };
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(
+                res,
+            )));
         }
 
         Ok(ReadLockGuard::new(self))
@@ -344,7 +367,9 @@ impl LockImpl for RwLock {
             return if res == libc::ETIMEDOUT {
                 Err(crate::Error::TimedOut)
             } else {
-                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)))
+                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(
+                    res,
+                )))
             };
         }
 
@@ -356,7 +381,9 @@ impl LockImpl for RwLock {
         let res = unsafe { pthread_rwlock_unlock(self.ptr) };
         debug!("\tres = {}", res);
         if res != 0 {
-            return Err(crate::Error::ReleaseFailed(std::io::Error::from_raw_os_error(res)));
+            return Err(crate::Error::ReleaseFailed(
+                std::io::Error::from_raw_os_error(res),
+            ));
         }
         Ok(())
     }
