@@ -64,6 +64,8 @@ impl EventInit for BusyEvent {
         let obj = Self { inner: ptr };
         let inner = &mut *obj.inner;
 
+        debug!("BusyEvent new {:p}", mem);
+
         inner.auto_reset = if auto_reset { 1 } else { 0 };
         obj.set(EventState::Clear)?;
 
@@ -71,12 +73,13 @@ impl EventInit for BusyEvent {
     }
 
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)> {
+        debug!("BusyEvent from {:p}", mem);
         let ptr = mem as *mut InnerBusy;
         let obj = Self { inner: ptr };
         let inner = &mut *obj.inner;
 
         if inner.auto_reset > 1 || inner.signal.load(Ordering::Relaxed) > 1 {
-            return Err(From::from("Existing BusyEvent is corrupted"));
+            return Err(crate::Error::EventCorrupted);
         }
 
         Ok((Box::new(obj), Self::size_of(None)))
@@ -84,6 +87,7 @@ impl EventInit for BusyEvent {
 }
 fn busy_wait_auto(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {
     let mut prev_val = signal.compare_and_swap(1, 0, Ordering::Relaxed);
+
     if prev_val == 1 {
         return Ok(());
     }
@@ -105,7 +109,7 @@ fn busy_wait_auto(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {
     if prev_val == 1 {
         Ok(())
     } else {
-        Err(From::from("Waiting for BusyEvent timed out !".to_string()))
+        Err(crate::Error::TimedOut)
     }
 }
 fn busy_wait_manual(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {
@@ -132,11 +136,12 @@ fn busy_wait_manual(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {
     if prev_val == 1 {
         Ok(())
     } else {
-        Err(From::from("Waiting for BusyEvent timed out !".to_string()))
+        Err(crate::Error::TimedOut)
     }
 }
 impl EventImpl for BusyEvent {
     fn wait(&self, timeout: Timeout) -> Result<()> {
+        debug!("BusyEvent wait {:p}", self.inner);
         let inner = unsafe { &mut *self.inner };
         // Do a quick check first up
         if inner.auto_reset == 1 {
@@ -147,6 +152,7 @@ impl EventImpl for BusyEvent {
     }
 
     fn set(&self, state: EventState) -> Result<()> {
+        debug!("BusyEvent set {:p}", self.inner);
         let inner = unsafe { &mut *self.inner };
         match state {
             EventState::Clear => {

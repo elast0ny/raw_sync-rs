@@ -21,6 +21,12 @@ use crate::events::*;
 use crate::locks::*;
 use crate::{Result, Timeout};
 
+/// Unix-specific extensions to the EventImpl trait
+pub trait EventImplExt {
+    /// Wait on event while also allowing spurious wakes from signals
+    fn inner_wait(&self, timeout: Timeout) -> Result<()>;
+}
+
 struct InnerEvent {
     cond: pthread_cond_t,
     auto_reset: u8,
@@ -47,26 +53,29 @@ impl EventInit for Event {
         let ptr = ptr.add(ptr.align_offset(size_of::<*mut u8>() as _)) as *mut InnerEvent;
         let inner = &mut *ptr;
 
+        debug!("Event new {:p}", ptr);
+
         #[allow(clippy::uninit_assumed_init)]
         let mut attrs: pthread_condattr_t = MaybeUninit::uninit().assume_init();
-        //trace!("pthread_condattr_init()");
-        if pthread_condattr_init(&mut attrs) != 0 {
-            return Err(From::from(
-                "Failed to initialize pthread_condattr_init".to_string(),
-            ));
-        }
-        //trace!("pthread_condattr_setpshared()");
-        if pthread_condattr_setpshared(&mut attrs, PTHREAD_PROCESS_SHARED) != 0 {
-            return Err(From::from(
-                "Failed to set pthread_condattr_setpshared(PTHREAD_PROCESS_SHARED)".to_string(),
-            ));
+        debug!("pthread_condattr_init({:p})", &attrs);
+        let res = pthread_condattr_init(&mut attrs);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
         }
 
-        //trace!("pthread_cond_init({:p})", ptr);
-        if pthread_cond_init(&mut inner.cond, &attrs) != 0 {
-            return Err(From::from(
-                "Failed to initialize pthread_cond_init".to_string(),
-            ));
+        debug!("pthread_condattr_setpshared({:p})", &attrs);
+        let res = pthread_condattr_setpshared(&mut attrs, PTHREAD_PROCESS_SHARED);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+        }
+
+        debug!("pthread_cond_init({:p})", ptr);
+        let res = pthread_cond_init(&mut inner.cond, &attrs);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
         }
         inner.auto_reset = if auto_reset { 1 } else { 0 };
         inner.signal = 0;
@@ -81,10 +90,11 @@ impl EventInit for Event {
         let ptr = mem.add(used_bytes);
         let ptr = ptr.add(ptr.align_offset(size_of::<*mut u8>() as _)) as *mut InnerEvent;
 
+        debug!("Event from {:p}", ptr);
         let inner = &mut *ptr;
 
         if inner.auto_reset > 1 || inner.signal > 1 {
-            return Err(From::from("Existing Event is corrupted"));
+            return Err(crate::Error::EventCorrupted);
         }
 
         let obj = Box::new(Self { mutex, inner });
@@ -103,20 +113,25 @@ impl EventImpl for Event {
             }
         };
 
+        debug!("Event wait {:p}", self.inner);
         let inner = unsafe { &mut *self.inner };
         let mut res = 0;
         if let Some(ts) = timespec {
             while inner.signal != 1 {
+                debug!("pthread_cond_timedwait({:p}, {:p})", &inner.cond, self.mutex.as_raw());
                 res = unsafe {
                     pthread_cond_timedwait(&mut inner.cond, self.mutex.as_raw() as _, &ts)
                 };
+                debug!("\tres = {}", res);
                 if res != 0 {
                     break;
                 }
             }
         } else {
             while inner.signal != 1 {
+                debug!("pthread_cond_wait({:p}, {:p})", &inner.cond, self.mutex.as_raw());
                 res = unsafe { pthread_cond_wait(&mut inner.cond, self.mutex.as_raw() as _) };
+                debug!("\tres = {}", res);
                 if res != 0 {
                     break;
                 }
@@ -130,7 +145,7 @@ impl EventImpl for Event {
             }
             Ok(())
         } else {
-            Err(From::from("Failed waiting for signal".to_string()))
+            Err(crate::Error::TimedOut)
         };
 
         drop(guard);
@@ -139,6 +154,7 @@ impl EventImpl for Event {
 
     fn set(&self, state: EventState) -> Result<()> {
         let guard = self.mutex.lock()?;
+        debug!("Event set {:p}", self.inner);
         let inner = unsafe { &mut *self.inner };
         let res = match state {
             EventState::Clear => {
@@ -150,22 +166,20 @@ impl EventImpl for Event {
                 inner.signal = 1;
                 unsafe {
                     if inner.auto_reset == 1 {
-                        //trace!("pthread_cond_signal({:p})", &inner.cond);
+                        debug!("pthread_cond_signal({:p})", &inner.cond);
                         pthread_cond_signal(&mut inner.cond)
                     } else {
-                        //trace!("pthread_cond_broadcast({:p})", &inner.cond);
+                        debug!("pthread_cond_broadcast({:p})", &inner.cond);
                         pthread_cond_broadcast(&mut inner.cond)
                     }
                 }
             }
         };
+        debug!("\tres = {}", res);
         drop(guard);
 
         if res != 0 {
-            Err(From::from(format!(
-                "Failed to set event state : 0x{:X}",
-                res
-            )))
+            Err(crate::Error::EventSetFailed(std::io::Error::from_raw_os_error(res)))
         } else {
             Ok(())
         }

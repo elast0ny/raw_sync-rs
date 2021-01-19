@@ -1,7 +1,7 @@
 [package]
 name = "raw_sync"
 description = "Lightweight wrapper around OS synchronization primitives"
-version = "0.1.5"
+version = "0.2.0"
 authors = ["elast0ny <elast0ny00@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
@@ -12,8 +12,13 @@ repository  = "https://github.com/elast0ny/raw_sync-rs"
 keywords = ["shmem", "shared", "memory", "inter-process", "process"]
 categories = ["os::unix-apis","os::windows-apis","concurrency"]
 
+[features]
+default = []
+verbose = ["log"]
+
 [dependencies]
 cfg-if = "1.0"
+log = {version = "0", optional = true}
 
 [dev-dependencies]
 log = "0.4"

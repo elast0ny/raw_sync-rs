@@ -40,8 +40,7 @@ extern "C" {
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
-        #[allow(clippy::missing_safety_doc)]
-        pub unsafe fn pthread_mutex_timedlock(lock: *mut pthread_mutex_t, abstime: &timespec) -> i32 {
+        unsafe fn pthread_mutex_timedlock(lock: *mut pthread_mutex_t, abstime: &timespec) -> i32 {
             let mut timenow: timespec = timespec {
                 tv_sec: 0,
                 tv_nsec: 0,
@@ -108,24 +107,29 @@ impl LockInit for Mutex {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
         #[allow(clippy::uninit_assumed_init)]
         let mut lock_attr: pthread_mutexattr_t = MaybeUninit::uninit().assume_init();
-        //trace!("pthread_mutexattr_init");
-        if pthread_mutexattr_init(&mut lock_attr) != 0 {
-            return Err(From::from(
-                "Failed to initialize pthread_mutexattr_t".to_string(),
-            ));
-        }
-        //trace!("pthread_mutexattr_setpshared");
-        if pthread_mutexattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED) != 0 {
-            return Err(From::from(
-                "Failed to set pthread_mutexattr_setpshared(PTHREAD_PROCESS_SHARED)".to_string(),
-            ));
-        }
+
         let ptr = mem.add(padding) as *mut _;
-        //trace!("pthread_mutex_init({:p})", ptr);
-        if pthread_mutex_init(ptr, &lock_attr) != 0 {
-            return Err(From::from(
-                "Failed to initialize mutex pthread_mutex_init".to_string(),
-            ));
+        debug!("Mutex new {:p}", ptr);
+        
+        debug!("pthread_mutexattr_init({:p})", &lock_attr);
+        let res = pthread_mutexattr_init(&mut lock_attr);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+        }
+        
+        debug!("pthread_mutexattr_setpshared({:p})", &lock_attr);
+        let res = pthread_mutexattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
+        }
+        
+        debug!("pthread_mutex_init({:p}, {:p})", ptr, &lock_attr);
+        let res = pthread_mutex_init(ptr, &lock_attr);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
         }
 
         let mutex = Box::new(Self {
@@ -138,10 +142,11 @@ impl LockInit for Mutex {
 
     unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
-
+    
         let ptr = mem.add(padding) as *mut _;
 
-        //trace!("existing mutex ({:p})", ptr);
+        debug!("Mutex from {:p}", ptr);
+
         let mutex = Box::new(Self {
             ptr,
             data: UnsafeCell::new(data),
@@ -161,10 +166,12 @@ impl LockImpl for Mutex {
     }
 
     fn lock(&self) -> Result<LockGuard<'_>> {
+
+        debug!("pthread_mutex_lock({:p})", self.ptr);
         let res = unsafe { pthread_mutex_lock(self.ptr) };
-        //trace!("pthread_mutex_lock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!("Failed to acquire mutex : {}", res)));
+            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)));
         }
 
         Ok(LockGuard::new(self))
@@ -176,20 +183,27 @@ impl LockImpl for Mutex {
             Timeout::Val(d) => abs_timespec_from_duration(d),
         };
 
+        debug!("pthread_mutex_timedlock({:p})", self.ptr);
         let res = unsafe { pthread_mutex_timedlock(self.ptr, &timespec) };
-        //trace!("pthread_mutex_timedlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
+        
         if res != 0 {
-            return Err(From::from(format!("Failed to acquire mutex : {}", res)));
+            return if res == libc::ETIMEDOUT {
+                Err(crate::Error::TimedOut)
+            } else {
+                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)))
+            };
         }
 
         Ok(LockGuard::new(self))
     }
 
     fn release(&self) -> Result<()> {
+        debug!("pthread_mutex_unlock({:p})", self.ptr);
         let res = unsafe { pthread_mutex_unlock(self.ptr) };
-        //trace!("pthread_mutex_unlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!("Failed to release mutex : {}", res)));
+            return Err(crate::Error::ReleaseFailed(std::io::Error::from_raw_os_error(res)));
         }
         Ok(())
     }
@@ -215,24 +229,32 @@ impl LockInit for RwLock {
     #[allow(clippy::new_ret_no_self)]
     unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
+        let ptr = mem.add(padding) as *mut _;
+
+        debug!("RWLock new {:p}", ptr);
+
         #[allow(clippy::uninit_assumed_init)]
         let mut lock_attr: pthread_rwlockattr_t = MaybeUninit::uninit().assume_init();
-        if pthread_rwlockattr_init(&mut lock_attr) != 0 {
-            return Err(From::from(
-                "Failed to initialize pthread_rwlockattr_t".to_string(),
-            ));
+
+        debug!("pthread_rwlockattr_init({:p})", &lock_attr);
+        let res = pthread_rwlockattr_init(&mut lock_attr);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
         }
-        if pthread_rwlockattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED) != 0 {
-            return Err(From::from(
-                "Failed to set pthread_rwlockattr_setpshared(PTHREAD_PROCESS_SHARED)".to_string(),
-            ));
+        
+        debug!("pthread_rwlockattr_init({:p})", &lock_attr);
+        let res = pthread_rwlockattr_setpshared(&mut lock_attr, PTHREAD_PROCESS_SHARED);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
         }
-        let ptr = mem.add(padding) as *mut _;
-        //trace!("pthread_rwlock_init({:p})", ptr);
-        if pthread_rwlock_init(ptr, &lock_attr) != 0 {
-            return Err(From::from(
-                "Failed to initialize pthread_rwlock_init".to_string(),
-            ));
+        
+        debug!("pthread_rwlock_init({:p})", ptr);
+        let res = pthread_rwlock_init(ptr, &lock_attr);
+        debug!("\tres = {}", res);
+        if res != 0 {
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(res)));
         }
 
         let lock = Box::new(Self {
@@ -247,8 +269,8 @@ impl LockInit for RwLock {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let ptr = mem.add(padding) as *mut _;
+        debug!("RWLock from {:p}", ptr);
 
-        //trace!("existing rwlock ({:p})", ptr);
         let lock = Box::new(Self {
             ptr,
             data: UnsafeCell::new(data),
@@ -268,13 +290,11 @@ impl LockImpl for RwLock {
     }
 
     fn lock(&self) -> Result<LockGuard<'_>> {
+        debug!("pthread_rwlock_wrlock({:p})", self.ptr);
         let res = unsafe { pthread_rwlock_wrlock(self.ptr) };
-        //trace!("pthread_rwlock_wrlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!(
-                "Failed to acquire writeable rwlock : {}",
-                res
-            )));
+            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)));
         }
 
         Ok(LockGuard::new(self))
@@ -286,26 +306,26 @@ impl LockImpl for RwLock {
             Timeout::Val(d) => abs_timespec_from_duration(d),
         };
 
+        debug!("pthread_rwlock_timedwrlock({:p})", self.ptr);
         let res = unsafe { pthread_rwlock_timedwrlock(self.ptr, &timespec) };
-        //trace!("pthread_rwlock_timedwrlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!(
-                "Failed to acquire writeable rwlock : {}",
-                res
-            )));
+            return if res == libc::ETIMEDOUT {
+                Err(crate::Error::TimedOut)
+            } else {
+                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)))
+            };
         }
 
         Ok(LockGuard::new(self))
     }
 
     fn rlock(&self) -> Result<ReadLockGuard<'_>> {
+        debug!("pthread_rwlock_rdlock({:p})", self.ptr);
         let res = unsafe { pthread_rwlock_rdlock(self.ptr) };
-        //trace!("pthread_rwlock_rdlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!(
-                "Failed to acquire readable rwlock : {}",
-                res
-            )));
+            return Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)));
         }
 
         Ok(ReadLockGuard::new(self))
@@ -317,23 +337,26 @@ impl LockImpl for RwLock {
             Timeout::Val(d) => abs_timespec_from_duration(d),
         };
 
+        debug!("pthread_rwlock_timedrdlock({:p})", self.ptr);
         let res = unsafe { pthread_rwlock_timedrdlock(self.ptr, &timespec) };
-        //trace!("pthread_rwlock_timedrdlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!(
-                "Failed to acquire readable rwlock : {}",
-                res
-            )));
+            return if res == libc::ETIMEDOUT {
+                Err(crate::Error::TimedOut)
+            } else {
+                Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(res)))
+            };
         }
 
         Ok(ReadLockGuard::new(self))
     }
 
     fn release(&self) -> Result<()> {
+        debug!("pthread_rwlock_unlock({:p})", self.ptr);
         let res = unsafe { pthread_rwlock_unlock(self.ptr) };
-        //trace!("pthread_rwlock_unlock({:p})", self.ptr);
+        debug!("\tres = {}", res);
         if res != 0 {
-            return Err(From::from(format!("Failed to release rwlock : {}", res)));
+            return Err(crate::Error::ReleaseFailed(std::io::Error::from_raw_os_error(res)));
         }
         Ok(())
     }

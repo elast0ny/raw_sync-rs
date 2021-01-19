@@ -13,6 +13,7 @@ It was mainly developed to be used with the [shared_memory](https://github.com/e
 ### Locks
 | Feature| Description | Linux | Windows| Mac|
 |--------|-------------|:-----:|:------:|:------:|
+|SpinLock|Busy lock backed by Atomic ops|TODO|TODO|TODO|
 |Mutex|Mutually exclusive lock|✔|✔|✔|
 |RwLock|Exclusive write/shared read|✔|X|✔|
 
@@ -22,7 +23,7 @@ It was mainly developed to be used with the [shared_memory](https://github.com/e
 | Feature| Description | Linux | Windows| Mac|
 |--------|-------------|:-----:|:------:|:------:|
 |Event| Generic event : [pthread_cond](https://linux.die.net/man/3/pthread_cond_init) on Unix and [Event Objects](https://msdn.microsoft.com/en-us/library/windows/desktop/ms682655.aspx) on windows. |✔|✔|✔|
-|BusyEvent|Busy event implemented by polling a byte in a loop|✔|✔|✔|
+|BusyEvent|Busy event backed by Atomic ops|✔|✔|✔|
 |EventFd|[Linux specific event type](http://man7.org/linux/man-pages/man2/eventfd.2.html)|TODO|N/A|N/A|
 
 
