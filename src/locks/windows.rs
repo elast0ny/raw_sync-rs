@@ -6,11 +6,12 @@ use std::ptr::null_mut;
 pub const MUTEX_ALL_ACCESS: u32 = 0x1F0001;
 use winapi::{
     shared::ntdef::{FALSE, NULL},
+    shared::winerror::WAIT_TIMEOUT,
     um::{
         errhandlingapi::GetLastError,
         handleapi::CloseHandle,
         synchapi::{CreateMutexExA, ReleaseMutex, WaitForSingleObject, CREATE_MUTEX_INITIAL_OWNER},
-        winbase::{OpenMutexA, INFINITE, WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_TIMEOUT},
+        winbase::{OpenMutexA, INFINITE, WAIT_ABANDONED, WAIT_OBJECT_0},
         winnt::{HANDLE, SYNCHRONIZE},
     },
 };
@@ -67,7 +68,7 @@ impl LockInit for Mutex {
         if mutex_handle == NULL {
             let err = GetLastError();
             debug!("\tres = {:p} {}", mutex_handle, err);
-            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(err)));
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(err as _)));
         } else {
             debug!("\tres = {:p}", mutex_handle);
         }
@@ -94,14 +95,14 @@ impl LockImpl for Mutex {
     }
 
     fn lock(&self) -> Result<LockGuard<'_>> {
-        debug!("WaitForSingleObject(0x{:X})", self.handle);
+        debug!("WaitForSingleObject({:p})", self.handle);
         let wait_res = unsafe { WaitForSingleObject(self.handle, INFINITE) };
         if wait_res == WAIT_OBJECT_0 {
             Ok(LockGuard::new(self))
         } else if wait_res == WAIT_ABANDONED {
             Err(crate::Error::ObjectCorrupted)
         } else {
-            let err = GetLastError();
+            let err = unsafe{GetLastError()} as _;
             Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(err)))
         }
     }
@@ -124,7 +125,7 @@ impl LockImpl for Mutex {
         } else if wait_res == WAIT_ABANDONED {
             Err(crate::Error::ObjectCorrupted)
         } else {
-            let err = GetLastError();
+            let err = unsafe{GetLastError()} as _;
             Err(crate::Error::LockFailed(std::io::Error::from_raw_os_error(err)))
         }
     }
@@ -132,7 +133,7 @@ impl LockImpl for Mutex {
     fn release(&self) -> Result<()> {
         debug!("ReleaseMutex({:p})", self.handle);
         if unsafe { ReleaseMutex(self.handle) } == 0 {
-            let err = GetLastError();
+            let err = unsafe{GetLastError()} as _;
             Err(crate::Error::ReleaseFailed(std::io::Error::from_raw_os_error(err)))
         } else {
             Ok(())

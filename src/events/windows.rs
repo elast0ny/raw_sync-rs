@@ -4,10 +4,12 @@ use std::ptr::null_mut;
 
 use winapi::{
     shared::ntdef::{FALSE, NULL, TRUE},
+    shared::winerror::WAIT_TIMEOUT,
     um::{
+        errhandlingapi::GetLastError,
         handleapi::CloseHandle,
         synchapi::{CreateEventA, OpenEventA, ResetEvent, SetEvent, WaitForSingleObject},
-        winbase::{INFINITE, WAIT_OBJECT_0},
+        winbase::{INFINITE, WAIT_OBJECT_0, WAIT_ABANDONED},
         winnt::{EVENT_MODIFY_STATE, HANDLE, SYNCHRONIZE},
     },
 };
@@ -20,7 +22,7 @@ pub struct Event {
 }
 impl Drop for Event {
     fn drop(&mut self) {
-        //trace!("CloseHandle(0x{:X})", self.handle as usize);
+        debug!("CloseHandle({:p})", self.handle);
         unsafe { CloseHandle(self.handle) };
     }
 }
@@ -36,7 +38,8 @@ impl EventInit for Event {
         while handle == NULL {
             id = rand::random::<u32>();
             let path = CString::new(format!("event_{}", id)).unwrap();
-            //trace!("CreateEventA(NULL, '{:?}', '{}')",!auto_reset,path.to_string_lossy());
+
+            debug!("CreateEventA(NULL, '{:?}', '{}')",!auto_reset, path.to_string_lossy());
             handle = CreateEventA(
                 null_mut(),
                 if auto_reset { FALSE } else { TRUE } as _,
@@ -44,7 +47,8 @@ impl EventInit for Event {
                 path.as_ptr() as *mut _,
             );
         }
-
+        
+        debug!("\tres = {:p}", handle);
         let obj: Box<dyn EventImpl> = Box::new(Event { handle });
         *(mem as *mut u32) = id;
         Ok((obj, Self::size_of(None)))
@@ -53,26 +57,24 @@ impl EventInit for Event {
     unsafe fn from_existing(mem: *mut u8) -> Result<(Box<dyn EventImpl>, usize)> {
         let id: u32 = *(mem as *mut u32);
         let path = CString::new(format!("event_{}", id)).unwrap();
-        //trace!("OpenEventA('{}')", path.to_string_lossy());
+        debug!("Event from '{}'", path.to_string_lossy());
         let handle = OpenEventA(
             EVENT_MODIFY_STATE | SYNCHRONIZE, // request full access
             FALSE as _,                       // handle not inheritable
             path.as_ptr() as *mut _,
         );
-
         if handle == NULL {
-            return Err(From::from(format!(
-                "Failed to open event {}",
-                path.to_string_lossy()
-            )));
+            let err = GetLastError() as _;
+            return Err(crate::Error::InitFailed(std::io::Error::from_raw_os_error(err)));
         }
+        debug!("\tres = {:p}", handle);
 
         Ok((Box::new(Event { handle }), Self::size_of(None)))
     }
 }
 impl EventImpl for Event {
     fn wait(&self, timeout: Timeout) -> Result<()> {
-        //trace!("WaitForSingleObject(0x{:X})", self.handle as usize);
+        debug!("WaitForSingleObject({:p})", self.handle);
         let wait_res = unsafe {
             WaitForSingleObject(
                 self.handle,
@@ -82,25 +84,27 @@ impl EventImpl for Event {
                 },
             )
         };
-
+        
         if wait_res == WAIT_OBJECT_0 {
             Ok(())
+        } else if wait_res == WAIT_TIMEOUT {
+            Err(crate::Error::TimedOut)
+        } else if wait_res == WAIT_ABANDONED {
+            Err(crate::Error::ObjectCorrupted)
         } else {
-            Err(From::from(format!(
-                "Failed waiting for event : 0x{:X}",
-                wait_res
-            )))
+            let err = unsafe{GetLastError()} as _;
+            Err(crate::Error::WaitFailed(std::io::Error::from_raw_os_error(err)))
         }
     }
 
     fn set(&self, state: EventState) -> Result<()> {
         let res = match state {
             EventState::Clear => {
-                //trace!("ResetEvent(0x{:X})", self.handle as usize);
+                debug!("ResetEvent({:p})", self.handle);
                 unsafe { ResetEvent(self.handle) }
             }
             EventState::Signaled => {
-                //trace!("SetEvent(0x{:X})", self.handle as usize);
+                debug!("SetEvent({:p})", self.handle);
                 unsafe { SetEvent(self.handle) }
             }
         };
@@ -108,10 +112,8 @@ impl EventImpl for Event {
         if res != 0 {
             Ok(())
         } else {
-            Err(From::from(format!(
-                "Failed setting event state : 0x{:X}",
-                res
-            )))
+            let err = unsafe{GetLastError()} as _;
+            Err(crate::Error::EventSetFailed(std::io::Error::from_raw_os_error(err)))
         }
     }
 }
