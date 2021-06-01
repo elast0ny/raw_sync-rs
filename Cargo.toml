@@ -24,5 +24,5 @@ rand = "0.8"
 winapi = { version = "0.3", features = ["winnt", "winbase", "winerror", "ntdef", "synchapi", "handleapi"] }
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.19"
+nix = "0.21"
 libc = "0.2"
