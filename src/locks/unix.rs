@@ -31,6 +31,18 @@ use libc::{
 
     PTHREAD_PROCESS_SHARED,
 };
+
+cfg_if::cfg_if! {
+    if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
+        use libc::{
+            pthread_mutex_consistent,
+            pthread_mutexattr_setrobust,
+            EOWNERDEAD,
+            PTHREAD_MUTEX_ROBUST,
+            PTHREAD_MUTEX_STALLED,
+        };
+    }
+}
 //use log::*;
 
 extern "C" {
@@ -89,12 +101,13 @@ pub(crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
     }
 }
 
-pub struct Mutex {
+struct MutexInternal {
     ptr: *mut pthread_mutex_t,
     data: UnsafeCell<*mut u8>,
+    robust: bool,
 }
 
-impl LockInit for Mutex {
+impl MutexInternal {
     fn size_of(addr: Option<*mut u8>) -> usize {
         let padding = match addr {
             Some(mem) => mem.align_offset(size_of::<*mut u8>() as _),
@@ -104,7 +117,7 @@ impl LockInit for Mutex {
     }
 
     #[allow(clippy::new_ret_no_self)]
-    unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
+    unsafe fn new(mem: *mut u8, data: *mut u8, robust: bool) -> Result<(Self, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
         #[allow(clippy::uninit_assumed_init)]
         let mut lock_attr: pthread_mutexattr_t = MaybeUninit::uninit().assume_init();
@@ -120,6 +133,30 @@ impl LockInit for Mutex {
                 "Failed to set pthread_mutexattr_setpshared(PTHREAD_PROCESS_SHARED)".to_string(),
             ));
         }
+
+        cfg_if::cfg_if! {
+            if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
+                if pthread_mutexattr_setrobust(
+                    &mut lock_attr,
+                    if robust {
+                        PTHREAD_MUTEX_ROBUST
+                    } else {
+                        PTHREAD_MUTEX_STALLED
+                    },
+                ) != 0
+                {
+                    return Err(From::from(format!(
+                        "Failed to set pthread_mutexattr_setrobust({})",
+                        if robust {
+                            "PTHREAD_MUTEX_ROBUST"
+                        } else {
+                            "PTHREAD_MUTEX_STALLED"
+                        },
+                    )));
+                }
+            }
+        }
+
         let ptr = mem.add(padding) as *mut _;
         //trace!("pthread_mutex_init({:p})", ptr);
         if pthread_mutex_init(ptr, &lock_attr) != 0 {
@@ -128,61 +165,68 @@ impl LockInit for Mutex {
             ));
         }
 
-        let mutex = Box::new(Self {
+        let mutex = Self {
             ptr,
             data: UnsafeCell::new(data),
-        });
+            robust,
+        };
 
         Ok((mutex, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
 
-    unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
+    unsafe fn from_existing(mem: *mut u8, data: *mut u8, robust: bool) -> Result<(Self, usize)> {
         let padding = mem.align_offset(size_of::<*mut u8>() as _);
 
         let ptr = mem.add(padding) as *mut _;
 
         //trace!("existing mutex ({:p})", ptr);
-        let mutex = Box::new(Self {
+        let mutex = Self {
             ptr,
             data: UnsafeCell::new(data),
-        });
+            robust,
+        };
 
         Ok((mutex, (ptr as usize - mem as usize) + Self::size_of(None)))
     }
-}
 
-impl Drop for Mutex {
-    fn drop(&mut self) {}
-}
-
-impl LockImpl for Mutex {
     fn as_raw(&self) -> *mut std::ffi::c_void {
         self.ptr as _
     }
 
-    fn lock(&self) -> Result<LockGuard<'_>> {
+    fn lock(&self) -> Result<()> {
         let res = unsafe { pthread_mutex_lock(self.ptr) };
-        //trace!("pthread_mutex_lock({:p})", self.ptr);
-        if res != 0 {
-            return Err(From::from(format!("Failed to acquire mutex : {}", res)));
+
+        cfg_if::cfg_if! {
+            if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
+                if self.robust && res == EOWNERDEAD {
+                    let res = unsafe { pthread_mutex_consistent(self.ptr) };
+                    if res != 0 {
+                        return Err(From::from(format!(
+                            "Failed to make robust mutex consistent : {}",
+                            res
+                        )));
+                    }
+                } else if res != 0 {
+                    return Err(From::from(format!("Failed to acquire mutex : {}", res)));
+                }
+            } else {
+                if res != 0 {
+                    return Err(From::from(format!("Failed to acquire mutex : {}", res)));
+                }
+            }
         }
 
-        Ok(LockGuard::new(self))
+        Ok(())
     }
 
-    fn try_lock(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
-        let timespec: timespec = match timeout {
-            Timeout::Infinite => return self.lock(),
-            Timeout::Val(d) => abs_timespec_from_duration(d),
-        };
-
+    fn try_lock(&self, timespec: timespec) -> Result<()> {
         let res = unsafe { pthread_mutex_timedlock(self.ptr, &timespec) };
         //trace!("pthread_mutex_timedlock({:p})", self.ptr);
         if res != 0 {
             return Err(From::from(format!("Failed to acquire mutex : {}", res)));
         }
 
-        Ok(LockGuard::new(self))
+        Ok(())
     }
 
     fn release(&self) -> Result<()> {
@@ -193,8 +237,111 @@ impl LockImpl for Mutex {
         }
         Ok(())
     }
+}
+
+impl Drop for MutexInternal {
+    fn drop(&mut self) {}
+}
+
+pub struct Mutex(MutexInternal);
+
+impl LockInit for Mutex {
+    fn size_of(addr: Option<*mut u8>) -> usize {
+        MutexInternal::size_of(addr)
+    }
+
+    #[allow(clippy::new_ret_no_self)]
+    unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
+        let (mutex, size) = MutexInternal::new(mem, data, false)?;
+
+        Ok((Box::new(Self(mutex)), size))
+    }
+
+    unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
+        let (mutex, size) = MutexInternal::from_existing(mem, data, false)?;
+
+        Ok((Box::new(Self(mutex)), size))
+    }
+}
+
+impl LockImpl for Mutex {
+    fn as_raw(&self) -> *mut std::ffi::c_void {
+        self.0.as_raw()
+    }
+
+    fn lock(&self) -> Result<LockGuard<'_>> {
+        self.0.lock()?;
+        Ok(LockGuard::new(self))
+    }
+
+    fn try_lock(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+        let timespec: timespec = match timeout {
+            Timeout::Infinite => return self.lock(),
+            Timeout::Val(d) => abs_timespec_from_duration(d),
+        };
+        self.0.try_lock(timespec)?;
+        Ok(LockGuard::new(self))
+    }
+
+    fn release(&self) -> Result<()> {
+        self.0.release()
+    }
+
     unsafe fn get_inner(&self) -> &mut *mut u8 {
-        &mut *self.data.get()
+        &mut *self.0.data.get()
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
+        pub struct MutexRobust(MutexInternal);
+
+        impl LockInit for MutexRobust {
+            fn size_of(addr: Option<*mut u8>) -> usize {
+                MutexInternal::size_of(addr)
+            }
+
+            #[allow(clippy::new_ret_no_self)]
+            unsafe fn new(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
+                let (mutex, size) = MutexInternal::new(mem, data, true)?;
+
+                Ok((Box::new(Self(mutex)), size))
+            }
+
+            unsafe fn from_existing(mem: *mut u8, data: *mut u8) -> Result<(Box<dyn LockImpl>, usize)> {
+                let (mutex, size) = MutexInternal::from_existing(mem, data, true)?;
+
+                Ok((Box::new(Self(mutex)), size))
+            }
+        }
+
+        impl LockImpl for MutexRobust {
+            fn as_raw(&self) -> *mut std::ffi::c_void {
+                self.0.as_raw()
+            }
+
+            fn lock(&self) -> Result<LockGuard<'_>> {
+                self.0.lock()?;
+                Ok(LockGuard::new(self))
+            }
+
+            fn try_lock(&self, timeout: Timeout) -> Result<LockGuard<'_>> {
+                let timespec: timespec = match timeout {
+                    Timeout::Infinite => return self.lock(),
+                    Timeout::Val(d) => abs_timespec_from_duration(d),
+                };
+                self.0.try_lock(timespec)?;
+                Ok(LockGuard::new(self))
+            }
+
+            fn release(&self) -> Result<()> {
+                self.0.release()
+            }
+
+            unsafe fn get_inner(&self) -> &mut *mut u8 {
+                &mut *self.0.data.get()
+            }
+        }
     }
 }
 
