@@ -83,7 +83,11 @@ impl EventInit for BusyEvent {
     }
 }
 fn busy_wait_auto(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {
-    let mut prev_val = signal.compare_and_swap(1, 0, Ordering::Relaxed);
+    let mut prev_val = match signal.compare_exchange(1, 0, Ordering::Relaxed, Ordering::Relaxed) {
+        Ok(v) => v,
+        Err(v) => v,
+    };
+
     if prev_val == 1 {
         return Ok(());
     }
@@ -91,13 +95,21 @@ fn busy_wait_auto(signal: &mut AtomicU8, timeout: Timeout) -> Result<()> {
         Timeout::Infinite => {
             // Busy loop until signaled
             while prev_val == 0 {
-                prev_val = signal.compare_and_swap(1, 0, Ordering::Relaxed);
+                prev_val = match signal.compare_exchange(1, 0, Ordering::Relaxed, Ordering::Relaxed)
+                {
+                    Ok(v) => v,
+                    Err(v) => v,
+                };
             }
         }
         Timeout::Val(d) => {
             let start = time::Instant::now();
             while prev_val == 0 && start.elapsed() < d {
-                prev_val = signal.compare_and_swap(1, 0, Ordering::Relaxed);
+                prev_val = match signal.compare_exchange(1, 0, Ordering::Relaxed, Ordering::Relaxed)
+                {
+                    Ok(v) => v,
+                    Err(v) => v,
+                };
             }
         }
     };
