@@ -3,7 +3,6 @@ use std::mem::{size_of, MaybeUninit};
 use std::time::Duration;
 
 use libc::{
-    clock_gettime,
     pthread_mutex_init,
     pthread_mutex_lock,
     //Mutex defs
@@ -27,7 +26,6 @@ use libc::{
     pthread_rwlockattr_setpshared,
     pthread_rwlockattr_t,
     timespec,
-    CLOCK_REALTIME,
 
     PTHREAD_PROCESS_SHARED,
 };
@@ -77,15 +75,13 @@ use crate::{Result, Timeout};
 
 /// Adds a duration to the current time
 pub(crate) fn abs_timespec_from_duration(d: Duration) -> timespec {
-    unsafe {
-        #[allow(clippy::uninit_assumed_init)]
-        let mut cur_time: timespec = MaybeUninit::uninit().assume_init();
-        // Get current time
-        clock_gettime(CLOCK_REALTIME, &mut cur_time);
-        // Add duration
-        cur_time.tv_sec += d.as_secs() as nix::sys::time::time_t;
-        cur_time.tv_nsec += d.subsec_nanos() as nix::sys::time::time_t;
-        cur_time
+    let abs_timeout = std::time::SystemTime::now() + d;
+    let duration = abs_timeout
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap();
+    timespec {
+        tv_sec: duration.as_secs() as i64,
+        tv_nsec: duration.subsec_nanos() as i64,
     }
 }
 
